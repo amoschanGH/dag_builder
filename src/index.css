@@ -335,17 +335,37 @@ textarea:focus-visible {
   font-size: 9px;
 }
 
+.round-grid__axis-label {
+  position: absolute;
+  z-index: 3;
+  color: #71839a;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.round-grid__axis-label--round {
+  top: 8px;
+  left: 8px;
+}
+
+.round-grid__axis-label--source {
+  top: 8px;
+  left: 48px;
+}
+
 .round-grid__row {
   position: absolute;
   right: 0;
-  left: 30px;
   border-top: 1px dashed rgb(100 116 139 / 25%);
 }
 
 .round-grid__row::after {
   position: absolute;
   top: -3px;
-  left: -8px;
+  left: -4px;
   width: 5px;
   height: 5px;
   content: "";
@@ -355,37 +375,52 @@ textarea:focus-visible {
 
 .round-grid__source-label {
   position: absolute;
-  top: -11px;
-  left: -30px;
-  width: 20px;
-  color: #8292a5;
+  top: 0;
+  left: -54px;
+  width: 46px;
+  color: #9aabc0;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
   text-align: right;
+  transform: translateY(-50%);
 }
 
 .round-grid__column {
   position: absolute;
   top: 0;
-  bottom: 25px;
-  border-left: 1px dashed rgb(71 85 105 / 18%);
+  bottom: 0;
+  border-left: 1px dashed rgb(71 85 105 / 24%);
+}
+
+.round-grid__column--next {
+  border-left-style: dotted;
+  opacity: 0.68;
 }
 
 .round-grid__round-label {
   position: absolute;
-  bottom: -21px;
-  left: -9px;
-  width: 18px;
-  color: #8292a5;
+  top: 7px;
+  left: 0;
+  z-index: 2;
+  width: 40px;
+  padding: 4px 5px;
+  border: 1px solid rgb(125 211 252 / 42%);
+  border-radius: 5px;
+  color: #bae6fd;
+  background: rgb(8 25 40 / 92%);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 22%);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
   text-align: center;
+  transform: translateX(-50%);
 }
 
-.round-grid__axis-label {
-  position: absolute;
-  bottom: -24px;
-  left: 0;
-  color: #5d6e83;
-  font-size: 8px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.round-grid__column--next .round-grid__round-label {
+  border-style: dashed;
+  color: #7dd3fc;
+  background: rgb(8 20 32 / 82%);
 }
 
 .canvas-shell {
@@ -456,6 +491,18 @@ textarea:focus-visible {
   display: block;
   width: 100%;
   text-align: center;
+}
+
+.dag-node--compact .dag-node__round {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  color: #7dd3fc;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .dag-node--compact .dag-node__id {

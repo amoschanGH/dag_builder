@@ -32,6 +32,7 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
           className="dag-handle dag-handle--hidden"
         />
         <div className="dag-node__header">
+          <span className="dag-node__round">R{vertex.round}</span>
           <span className="dag-node__id">{vertex.id}</span>
           <span className={`status-dot status-dot--${vertex.status}`} />
         </div>

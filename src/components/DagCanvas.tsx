@@ -20,7 +20,7 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from '@xyflow/react'
-import type { DagEdge } from '../domain/dag'
+import { getLocalDagRoundGridBounds, type DagEdge } from '../domain/dag'
 import { getStrongCausalHistory, getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
@@ -37,7 +37,8 @@ const nodeTypes: NodeTypes = {
 }
 
 function DagFlow() {
-  const vertices = useDagStore((state) => state.dag.vertices)
+  const dag = useDagStore((state) => state.dag)
+  const vertices = dag.vertices
   const edges = useDagStore((state) => state.edges)
   const selectedVertexId = useDagStore((state) => state.selectedVertexId)
   const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
@@ -53,12 +54,31 @@ function DagFlow() {
   const { fitView } = useReactFlow<DagFlowNode, DagFlowEdge>()
 
   const [composerOpen, setComposerOpen] = useState(false)
+  const gridBounds = useMemo(
+    () =>
+      layoutMode === 'round-grid' ? getLocalDagRoundGridBounds(dag) : null,
+    [dag, layoutMode],
+  )
+  const gridLayoutKey = useMemo(() => {
+    if (!gridBounds) return layoutMode
+    return [
+      layoutMode,
+      gridBounds.minRound,
+      gridBounds.maxRound,
+      gridBounds.nextRound,
+      gridBounds.minSource,
+      gridBounds.maxSource,
+      gridBounds.rounds.join(','),
+      gridBounds.sources.join(','),
+      vertices.size,
+    ].join(':')
+  }, [gridBounds, layoutMode, vertices.size])
 
   useEffect(() => {
     if (vertices.size > 0) {
       void fitView({ padding: 0.2, duration: 0 })
     }
-  }, [fitView, vertices.size])
+  }, [fitView, gridLayoutKey, vertices.size])
 
   const causalHistory = useMemo(() => {
     if (selectedEdgeId) {
@@ -204,9 +224,9 @@ function DagFlow() {
       aria-label="Interactive local DAG"
     >
       <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1b2a3b" />
-      {layoutMode === 'round-grid' && (
+      {gridBounds && (
         <ViewportPortal>
-          <RoundGrid vertices={vertices.values()} />
+          <RoundGrid bounds={gridBounds} />
         </ViewportPortal>
       )}
       <MiniMap

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getRoundGridBounds, roundGridPosition } from '../domain/dag'
 import { useDagStore } from './useDagStore'
 
 describe('useDagStore', () => {
@@ -128,5 +129,43 @@ describe('useDagStore', () => {
     const state = useDagStore.getState()
     expect(state.dag.vertices.has(middle)).toBe(false)
     expect(state.edges.size).toBe(0)
+  })
+
+  it('realigns the grid when the earliest round is removed', () => {
+    const first = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 1,
+      referenceIds: [],
+    })
+    const second = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 2,
+      referenceIds: [],
+    })
+    expect(first.ok && second.ok).toBe(true)
+    if (!first.ok || !second.ok) return
+
+    useDagStore.getState().removeVertex(first.id)
+
+    const state = useDagStore.getState()
+    const bounds = getRoundGridBounds(state.dag.vertices.values())
+    expect(bounds.minRound).toBe(1)
+    expect(state.dag.vertices.get(second.id)?.position).toEqual(
+      roundGridPosition(2, 1, bounds),
+    )
+  })
+
+  it('loads the preset example starting at round 1', () => {
+    useDagStore.getState().loadExample()
+
+    const rounds = Array.from(
+      useDagStore.getState().dag.vertices.values(),
+      (vertex) => vertex.round,
+    )
+    expect(Math.min(...rounds)).toBe(1)
+    expect(Math.max(...rounds)).toBe(5)
+    expect(
+      getRoundGridBounds(useDagStore.getState().dag.vertices.values()).rounds,
+    ).toEqual([1, 2, 3, 4, 5, 6])
   })
 })

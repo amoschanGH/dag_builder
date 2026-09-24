@@ -185,19 +185,19 @@ function rebuildStrongEdges(dag: LocalDag) {
 function createExampleGraph(): GraphState {
   let dag = createLocalDag()
   const vertices = [
-    createVertex('v1', 1, 8, { x: 0, y: 0 }, 'committed'),
-    createVertex('v2', 2, 5, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v3', 3, 6, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v4', 4, 5, { x: 0, y: 0 }, 'committed'),
-    createVertex('v5', 1, 6, { x: 0, y: 0 }, 'deliverable'),
-    createVertex('v6', 3, 4, { x: 0, y: 0 }, 'committed'),
-    createVertex('v7', 1, 7, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v8', 2, 7, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v9', 4, 7, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v10', 2, 4, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v11', 4, 4, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v12', 1, 5, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v13', 4, 6, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v1', 1, 5, { x: 0, y: 0 }, 'committed'),
+    createVertex('v2', 2, 2, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v3', 3, 3, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v4', 4, 2, { x: 0, y: 0 }, 'committed'),
+    createVertex('v5', 1, 3, { x: 0, y: 0 }, 'deliverable'),
+    createVertex('v6', 3, 1, { x: 0, y: 0 }, 'committed'),
+    createVertex('v7', 1, 4, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v8', 2, 4, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v9', 4, 4, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v10', 2, 1, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v11', 4, 1, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v12', 1, 2, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v13', 4, 3, { x: 0, y: 0 }, 'in-dag'),
   ]
 
   const edges = new Map<EdgeId, DagEdge>()
@@ -426,6 +426,8 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     set((state) => {
       const dag = removeVertex(state.dag, vertexId)
       if (!dag) return state
+      const positionedDag =
+        state.layoutMode === 'round-grid' ? layoutVerticesByRounds(dag) : dag
 
       const edges = new Map(state.edges)
       for (const [edgeId, edge] of edges) {
@@ -435,7 +437,7 @@ export const useDagStore = create<DagStore>()((set, get) => ({
       }
 
       return {
-        dag,
+        dag: positionedDag,
         edges,
         selectedVertexId:
           state.selectedVertexId === vertexId ? null : state.selectedVertexId,

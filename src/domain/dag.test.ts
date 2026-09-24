@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { getRoundGridBounds, layoutVerticesByRounds, createLocalDag, insertVertex, type DagVertex } from './dag'
+import {
+  createLocalDag,
+  getLocalDagRoundGridBounds,
+  getRoundGridBounds,
+  insertVertex,
+  layoutVerticesByRounds,
+  roundGridColumnCenter,
+  roundGridPosition,
+  roundGridRowCenter,
+  type DagVertex,
+} from './dag'
 
 function vertex(id: string, source: number, round: number): DagVertex {
   return {
@@ -22,10 +32,43 @@ describe('round-grid layout', () => {
     ])
 
     expect(bounds).toMatchObject({
-      minRound: 5,
+      minRound: 1,
       maxRound: 8,
       minSource: 1,
       maxSource: 4,
+    })
+  })
+
+  it('derives the grid extent from the local DAG round index', () => {
+    let dag = createLocalDag()
+    dag = insertVertex(dag, vertex('first', 1, 1)) ?? dag
+    dag = insertVertex(dag, vertex('latest', 4, 3)) ?? dag
+    const bounds = getLocalDagRoundGridBounds(dag)
+
+    expect(bounds).toMatchObject({
+      minRound: 1,
+      maxRound: 3,
+      nextRound: 4,
+      maxSource: 4,
+      rounds: [1, 2, 3, 4],
+    })
+  })
+
+  it('keeps grid axes centered on vertex cells', () => {
+    const bounds = getRoundGridBounds([vertex('v1', 2, 3)])
+    const position = roundGridPosition(3, 2, bounds)
+
+    expect(roundGridColumnCenter(3, bounds)).toBe(position.x + bounds.nodeWidth / 2)
+    expect(roundGridRowCenter(2, bounds)).toBe(position.y + bounds.nodeHeight / 2)
+  })
+
+  it('uses the vertex range instead of a fixed number of round columns', () => {
+    const bounds = getRoundGridBounds([vertex('single', 1, 3)])
+
+    expect(bounds).toMatchObject({
+      minRound: 1,
+      maxRound: 3,
+      rounds: [1, 2, 3, 4],
     })
   })
 
@@ -35,7 +78,7 @@ describe('round-grid layout', () => {
     dag = insertVertex(dag, vertex('oldest', 3, 5)) ?? dag
     dag = layoutVerticesByRounds(dag)
 
-    expect(dag.vertices.get('oldest')?.position).toEqual({ x: 100, y: 330 })
-    expect(dag.vertices.get('newest')?.position).toEqual({ x: 760, y: 80 })
+    expect(dag.vertices.get('oldest')?.position).toEqual({ x: 980, y: 330 })
+    expect(dag.vertices.get('newest')?.position).toEqual({ x: 1640, y: 80 })
   })
 })

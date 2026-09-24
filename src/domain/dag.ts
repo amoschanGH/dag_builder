@@ -127,52 +127,98 @@ export const DAG_LAYOUT = {
   originY: 80,
   columnWidth: 220,
   rowHeight: 125,
+  nodeWidth: 72,
+  nodeHeight: 72,
+  headerWidth: 70,
+  headerHeight: 45,
+  minRound: 1,
   minSource: 1,
-  visibleSourceRows: 4,
-  visibleRoundColumns: 4,
 } as const
 
 export interface RoundGridBounds {
   minRound: number
   maxRound: number
+  nextRound: number
   minSource: number
   maxSource: number
+  rounds: number[]
+  sources: number[]
   originX: number
   originY: number
   columnWidth: number
   rowHeight: number
+  nodeWidth: number
+  nodeHeight: number
+  headerWidth: number
+  headerHeight: number
+}
+
+function createRoundGridBounds(
+  roundValues: Iterable<number>,
+  sourceValues: Iterable<number>,
+): RoundGridBounds {
+  const roundsPresent = Array.from(new Set(roundValues)).sort(
+    (left, right) => left - right,
+  )
+  const sourcesPresent = Array.from(new Set(sourceValues)).sort(
+    (left, right) => left - right,
+  )
+  const minRound = Math.min(
+    DAG_LAYOUT.minRound,
+    roundsPresent[0] ?? DAG_LAYOUT.minRound,
+  )
+  const maxRound = roundsPresent[roundsPresent.length - 1] ?? minRound
+  const minSource = Math.min(
+    DAG_LAYOUT.minSource,
+    sourcesPresent[0] ?? DAG_LAYOUT.minSource,
+  )
+  const maxSource = sourcesPresent[sourcesPresent.length - 1] ?? minSource
+  const nextRound = maxRound + 1
+  const rounds = Array.from(
+    { length: nextRound - minRound + 1 },
+    (_, index) => minRound + index,
+  )
+  const sources = Array.from(
+    { length: maxSource - minSource + 1 },
+    (_, index) => minSource + index,
+  )
+
+  return {
+    minRound,
+    maxRound,
+    nextRound,
+    minSource,
+    maxSource,
+    rounds,
+    sources,
+    originX: DAG_LAYOUT.originX,
+    originY: DAG_LAYOUT.originY,
+    columnWidth: DAG_LAYOUT.columnWidth,
+    rowHeight: DAG_LAYOUT.rowHeight,
+    nodeWidth: DAG_LAYOUT.nodeWidth,
+    nodeHeight: DAG_LAYOUT.nodeHeight,
+    headerWidth: DAG_LAYOUT.headerWidth,
+    headerHeight: DAG_LAYOUT.headerHeight,
+  }
 }
 
 export function getRoundGridBounds(
   vertices: Iterable<DagVertex>,
 ): RoundGridBounds {
   const values = Array.from(vertices)
-  const rounds = values.map((vertex) => vertex.round)
-  const sources = values.map((vertex) => vertex.source)
-  const minRound = rounds.length > 0 ? Math.min(...rounds) : 1
-  const maxRound = Math.max(
-    minRound + DAG_LAYOUT.visibleRoundColumns - 1,
-    rounds.length > 0 ? Math.max(...rounds) : 1,
+  return createRoundGridBounds(
+    values.map((vertex) => vertex.round),
+    values.map((vertex) => vertex.source),
   )
-  const minSource = Math.min(
-    DAG_LAYOUT.minSource,
-    sources.length > 0 ? Math.min(...sources) : DAG_LAYOUT.minSource,
-  )
-  const maxSource = Math.max(
-    DAG_LAYOUT.visibleSourceRows,
-    sources.length > 0 ? Math.max(...sources) : DAG_LAYOUT.visibleSourceRows,
-  )
+}
 
-  return {
-    minRound,
-    maxRound,
-    minSource,
-    maxSource,
-    originX: DAG_LAYOUT.originX,
-    originY: DAG_LAYOUT.originY,
-    columnWidth: DAG_LAYOUT.columnWidth,
-    rowHeight: DAG_LAYOUT.rowHeight,
-  }
+export function getLocalDagRoundGridBounds(dag: LocalDag): RoundGridBounds {
+  const roundValues = new Set(dag.rounds.keys())
+  for (const vertex of dag.vertices.values()) roundValues.add(vertex.round)
+  return createRoundGridBounds(
+    roundValues,
+    Array.from(dag.vertices.values(), (vertex) => vertex.source),
+  )
 }
 
 export function roundGridPosition(
@@ -186,8 +232,22 @@ export function roundGridPosition(
   }
 }
 
+export function roundGridColumnCenter(
+  round: number,
+  bounds: RoundGridBounds,
+): number {
+  return roundGridPosition(round, bounds.minSource, bounds).x + bounds.nodeWidth / 2
+}
+
+export function roundGridRowCenter(
+  source: number,
+  bounds: RoundGridBounds,
+): number {
+  return roundGridPosition(bounds.minRound, source, bounds).y + bounds.nodeHeight / 2
+}
+
 export function layoutVerticesByRounds(dag: LocalDag): LocalDag {
-  const bounds = getRoundGridBounds(dag.vertices.values())
+  const bounds = getLocalDagRoundGridBounds(dag)
   const vertices = new Map(
     Array.from(dag.vertices.values(), (vertex) => [
       vertex.id,
