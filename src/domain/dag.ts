@@ -52,6 +52,32 @@ export interface LocalDag {
   rounds: Map<number, Set<VertexId>>
 }
 
+export interface VertexSlotInfo {
+  index: number
+  count: number
+}
+
+export function getVertexSlotInfo(
+  vertices: Iterable<DagVertex>,
+): Map<VertexId, VertexSlotInfo> {
+  const grouped = new Map<string, DagVertex[]>()
+  for (const vertex of vertices) {
+    const key = `${vertex.source}:${vertex.round}`
+    const group = grouped.get(key) ?? []
+    group.push(vertex)
+    grouped.set(key, group)
+  }
+
+  const result = new Map<VertexId, VertexSlotInfo>()
+  for (const group of grouped.values()) {
+    group.sort((left, right) => left.id.localeCompare(right.id))
+    group.forEach((vertex, index) => {
+      result.set(vertex.id, { index, count: group.length })
+    })
+  }
+  return result
+}
+
 export type VertexPatch = Partial<
   Pick<DagVertex, 'source' | 'round' | 'wave' | 'position' | 'status'>
 > & {
@@ -95,23 +121,6 @@ function removeFromRoundIndex(
   } else {
     rounds.set(round, nextRoundVertices)
   }
-}
-
-function hasConflictingSlot(
-  vertices: Map<VertexId, DagVertex>,
-  vertex: DagVertex,
-) {
-  for (const candidate of vertices.values()) {
-    if (
-      candidate.id !== vertex.id &&
-      candidate.source === vertex.source &&
-      candidate.round === vertex.round
-    ) {
-      return true
-    }
-  }
-
-  return false
 }
 
 export function createLocalDag(processId = 0): LocalDag {
@@ -221,14 +230,47 @@ export function getLocalDagRoundGridBounds(dag: LocalDag): RoundGridBounds {
   )
 }
 
+function roundGridSlotOffset(
+  index: number,
+  count: number,
+  bounds: RoundGridBounds,
+): Point {
+  if (count <= 1) return { x: 0, y: 0 }
+
+  const columns = Math.ceil(Math.sqrt(count))
+  const rows = Math.ceil(count / columns)
+  const column = index % columns
+  const row = Math.floor(index / columns)
+  const horizontalStep =
+    columns <= 1
+      ? 0
+      : Math.min(78, (bounds.columnWidth - bounds.nodeWidth - 16) / (columns - 1))
+  const verticalStep =
+    rows <= 1
+      ? 0
+      : Math.min(70, (bounds.rowHeight - bounds.nodeHeight - 12) / (rows - 1))
+
+  return {
+    x: (column - (columns - 1) / 2) * horizontalStep,
+    y: (row - (rows - 1) / 2) * verticalStep,
+  }
+}
+
 export function roundGridPosition(
   round: number,
   source: number,
   bounds: RoundGridBounds,
+  slotIndex = 0,
+  slotCount = 1,
 ): Point {
-  return {
+  const base = {
     x: bounds.originX + (round - bounds.minRound) * bounds.columnWidth,
     y: bounds.originY + (source - bounds.minSource) * bounds.rowHeight,
+  }
+  const offset = roundGridSlotOffset(slotIndex, slotCount, bounds)
+  return {
+    x: base.x + offset.x,
+    y: base.y + offset.y,
   }
 }
 
@@ -248,14 +290,24 @@ export function roundGridRowCenter(
 
 export function layoutVerticesByRounds(dag: LocalDag): LocalDag {
   const bounds = getLocalDagRoundGridBounds(dag)
+  const slotInfo = getVertexSlotInfo(dag.vertices.values())
   const vertices = new Map(
-    Array.from(dag.vertices.values(), (vertex) => [
-      vertex.id,
-      {
-        ...vertex,
-        position: roundGridPosition(vertex.round, vertex.source, bounds),
-      },
-    ]),
+    Array.from(dag.vertices.values(), (vertex) => {
+      const slot = slotInfo.get(vertex.id)
+      return [
+        vertex.id,
+        {
+          ...vertex,
+          position: roundGridPosition(
+            vertex.round,
+            vertex.source,
+            bounds,
+            slot?.index ?? 0,
+            slot?.count ?? 1,
+          ),
+        },
+      ]
+    }),
   )
 
   return { ...dag, vertices }
@@ -265,7 +317,7 @@ export function insertVertex(
   dag: LocalDag,
   vertex: DagVertex,
 ): LocalDag | null {
-  if (dag.vertices.has(vertex.id) || hasConflictingSlot(dag.vertices, vertex)) {
+  if (dag.vertices.has(vertex.id)) {
     return null
   }
 
@@ -293,8 +345,6 @@ export function patchVertex(
   if (nextVertex.source !== current.source) {
     nextVertex.blockData.proposer = nextVertex.source
   }
-
-  if (hasConflictingSlot(dag.vertices, nextVertex)) return null
 
   const vertices = new Map(dag.vertices)
   const rounds = new Map(dag.rounds)

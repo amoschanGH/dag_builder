@@ -1,5 +1,6 @@
 import {
   insertVertex,
+  layoutVerticesByRounds,
   validateConnection,
   type DagEdge,
   type DagVertex,
@@ -341,14 +342,6 @@ export class Simulator {
         : failure('conflicting-vertex', `Vertex ${content.id} has conflicting content.`)
     }
 
-    const conflict = this.findSlotConflict(process, content)
-    if (conflict) {
-      return failure(
-        'conflicting-vertex',
-        `Source ${content.source} already has a vertex at round ${content.round}.`,
-      )
-    }
-
     const vertex: DagVertex = {
       ...cloneContent(content),
       status: 'buffered',
@@ -414,13 +407,14 @@ export class Simulator {
       status: 'in-dag',
       timestamp: this.currentTick,
     }
-    const dag = insertVertex(process.dag, vertex)
-    if (!dag) {
+    const insertedDag = insertVertex(process.dag, vertex)
+    if (!insertedDag) {
       return failure(
         'conflicting-vertex',
-        `${vertexId} conflicts with an existing source-round slot.`,
+        `${vertexId} could not be inserted into the local DAG.`,
       )
     }
+    const dag = layoutVerticesByRounds(insertedDag)
 
     const buffer = new Map(process.buffer)
     buffer.delete(vertexId)
@@ -690,6 +684,7 @@ export class Simulator {
       dag = nextDag
       this.addAutomaticStrongEdges(vertex, dag, edges, pendingEdges)
     }
+    dag = layoutVerticesByRounds(dag)
 
     const seedEdges = Array.from(seed.edges).sort(compareEdges)
     for (const edge of seedEdges) {
@@ -776,19 +771,6 @@ export class Simulator {
       if (dag.vertices.has(vertex.id)) edges.set(edge.id, edge)
       else pendingEdges.set(edge.id, edge)
     }
-  }
-
-  private findSlotConflict(process: ProcessView, content: VertexContent) {
-    const vertices = [
-      ...process.dag.vertices.values(),
-      ...Array.from(process.buffer.values(), (buffered) => buffered.vertex),
-    ]
-    return vertices.find(
-      (vertex) =>
-        vertex.id !== content.id &&
-        vertex.source === content.source &&
-        vertex.round === content.round,
-    )
   }
 
   private replaceProcess(processId: ProcessId, process: ProcessView) {
@@ -906,22 +888,6 @@ export class Simulator {
         outcome: duplicate ? 'duplicate' : 'rejected',
         insertedEdgeIds: [],
       }
-    }
-
-    const slotConflict = this.findSlotConflict(process, message.payload.vertex)
-    if (slotConflict) {
-      this.record({
-        tick: this.currentTick,
-        kind: 'message-rejected',
-        detail: `Rejected ${message.payload.vertex.id}: source-round slot is already occupied.`,
-        processId: message.receiver,
-        messageId: message.id,
-        broadcastId: message.broadcastId,
-        vertexId: message.payload.vertex.id,
-        receiver: message.receiver,
-        sender: message.sender,
-      })
-      return { message, tick: this.currentTick, outcome: 'rejected', insertedEdgeIds: [] }
     }
 
     const vertex: DagVertex = {

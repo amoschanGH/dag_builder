@@ -5,6 +5,8 @@ export type DagVertexNodeData = {
   vertex: DagVertex
   compact?: boolean
   inCausalHistory?: boolean
+  slotCount?: number
+  slotIndex?: number
 } & Record<string, unknown>
 
 export type DagFlowNode = Node<DagVertexNodeData, 'dagVertex'>
@@ -18,13 +20,23 @@ const statusLabels = {
 } as const
 
 export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
-  const { vertex, compact = false, inCausalHistory = false } = data
+  const {
+    vertex,
+    compact = false,
+    inCausalHistory = false,
+    slotCount = 1,
+    slotIndex = 0,
+  } = data
+  const isEquivocation = slotCount > 1
+  const slotDescription = isEquivocation
+    ? `, equivocation block ${slotIndex + 1} of ${slotCount} at this source-round slot`
+    : ''
 
   if (compact) {
     return (
       <div
-        className={`dag-node dag-node--compact ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''}`}
-        aria-label={`Vertex ${vertex.id}, source ${vertex.source}, round ${vertex.round}${inCausalHistory ? ', in causal history' : ''}`}
+        className={`dag-node dag-node--compact ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''} ${isEquivocation ? 'dag-node--equivocation' : ''}`}
+        aria-label={`Vertex ${vertex.id}, source ${vertex.source}, round ${vertex.round}${slotDescription}${inCausalHistory ? ', in causal history' : ''}`}
       >
         <Handle
           type="target"
@@ -47,8 +59,8 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
 
   return (
     <div
-      className={`dag-node ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''}`}
-      aria-label={`Vertex ${vertex.id}${inCausalHistory ? ', in causal history' : ''}`}
+      className={`dag-node ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''} ${isEquivocation ? 'dag-node--equivocation' : ''}`}
+      aria-label={`Vertex ${vertex.id}${slotDescription}${inCausalHistory ? ', in causal history' : ''}`}
     >
       <Handle
         type="target"

@@ -13,9 +13,6 @@ function statusLabel(status: VertexStatus) {
 
 function updateMessage(result: VertexUpdateResult) {
   if (result === 'updated') return null
-  if (result === 'duplicate-slot') {
-    return 'Each process can have only one vertex per round.'
-  }
   if (result === 'not-found') return 'That vertex no longer exists.'
   return 'Use a non-negative whole number.'
 }
@@ -247,6 +244,7 @@ export function InspectorPanel() {
       <div className="inspector-legend">
         <span>Legend</span>
         <div><i className="legend-line legend-line--strong" />Strong predecessor edge</div>
+        <div><i className="legend-swatch legend-swatch--equivocation" />Equivocation slot</div>
       </div>
     </aside>
   )

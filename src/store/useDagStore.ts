@@ -21,7 +21,6 @@ import {
 export type VertexUpdateResult =
   | 'updated'
   | 'not-found'
-  | 'duplicate-slot'
   | 'invalid-value'
 
 export type EdgeAddResult =
@@ -37,7 +36,7 @@ export interface CreateVertexOptions {
 
 export type CreateVertexResult =
   | { ok: true; id: VertexId }
-  | { ok: false; reason: 'duplicate-slot' | 'invalid-reference' | 'invalid-value' }
+  | { ok: false; reason: 'duplicate-id' | 'invalid-reference' | 'invalid-value' }
 
 export type LayoutMode = 'round-grid' | 'freeform'
 
@@ -328,7 +327,7 @@ export const useDagStore = create<DagStore>()((set, get) => ({
       options.position ?? defaultPosition(state.dag.vertices.size),
     )
     let dag = insertVertex(state.dag, vertex)
-    if (!dag) return { ok: false, reason: 'duplicate-slot' as const }
+    if (!dag) return { ok: false, reason: 'duplicate-id' as const }
     if (state.layoutMode === 'round-grid') {
       dag = layoutVerticesByRounds(dag)
     }
@@ -392,11 +391,7 @@ export const useDagStore = create<DagStore>()((set, get) => ({
 
     const state = get()
     const dag = patchVertex(state.dag, vertexId, patch)
-    if (!dag) {
-      return state.dag.vertices.has(vertexId)
-        ? 'duplicate-slot'
-        : 'not-found'
-    }
+    if (!dag) return 'not-found'
 
     const edgeState =
       patch.source !== undefined || patch.round !== undefined

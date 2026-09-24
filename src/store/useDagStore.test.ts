@@ -90,17 +90,27 @@ describe('useDagStore', () => {
     expect(Array.from(edges.values()).every((edge) => edge.kind === 'strong')).toBe(true)
   })
 
-  it('rejects duplicate source-round slots', () => {
-    const first = useDagStore.getState().addVertex()
-    const second = useDagStore.getState().addVertex()
+  it('allows multiple source-round vertices to model equivocation', () => {
+    const first = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 1,
+      referenceIds: [],
+    })
+    const second = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 1,
+      referenceIds: [],
+    })
 
-    expect(
-      useDagStore.getState().updateVertex(second, { source: 1, round: 1 }),
-    ).toBe(
-      'duplicate-slot',
+    expect(first.ok && second.ok).toBe(true)
+    if (!first.ok || !second.ok) return
+    expect(useDagStore.getState().dag.vertices.size).toBe(2)
+    expect(useDagStore.getState().dag.rounds.get(1)).toEqual(
+      new Set([first.id, second.id]),
     )
-    expect(useDagStore.getState().dag.vertices.get(second)?.source).toBe(1)
-    expect(useDagStore.getState().dag.vertices.has(first)).toBe(true)
+    expect(
+      useDagStore.getState().updateVertex(second.id, { source: 1, round: 1 }),
+    ).toBe('updated')
   })
 
   it('keeps editor edges strong-only and rejects non-predecessor links', () => {

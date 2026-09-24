@@ -10,7 +10,7 @@ Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
 - Place, drag, select, inspect, and delete vertices.
 - Create blocks; strong predecessor edges are generated automatically to the previous round.
 - Use the New block composer to choose source/round and select or edit strong references instead of being forced into the latest round.
-- Prevent self-loops, duplicate directed edges, cycles, and duplicate `(source, round)` slots.
+- Prevent self-loops and duplicate directed edges/cycles; multiple blocks may share a `(source, round)` slot to model equivocation, while quorum counts distinct sources. Equivocating blocks are offset in the grid and highlighted in a distinct color.
 - Load a sample DAG or clear the editor graph.
 - Select a strong edge to inspect its source/target blocks, round relation, capture tick, origin process, and recursively traced causal history.
 - Display the default round/source grid: rounds run left-to-right, sources run top-to-bottom, outgoing/source handles are on the left, incoming/target handles are on the right, and strong edges point from a new block toward its previous-round predecessors; switch to Freeform for manual placement.

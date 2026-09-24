@@ -10,7 +10,7 @@ import {
   type Edge,
   type NodeTypes,
 } from '@xyflow/react'
-import type { DagEdge } from '../domain/dag'
+import { getVertexSlotInfo, type DagEdge } from '../domain/dag'
 import { getStrongCausalHistory, getStrongReferenceDetails } from '../domain/strongReferences'
 import { useSimulationStore } from '../store/useSimulationStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
@@ -32,6 +32,10 @@ export function SimulationCanvas() {
   const selectVertex = useSimulationStore((state) => state.selectVertex)
   const selectEdge = useSimulationStore((state) => state.selectEdge)
   const process = snapshot.processes.get(activeProcessId)
+  const slotInfo = useMemo(
+    () => getVertexSlotInfo(process?.dag.vertices.values() ?? []),
+    [process],
+  )
 
   const causalHistory = useMemo(() => {
     if (selectedEdgeId) {
@@ -71,28 +75,34 @@ export function SimulationCanvas() {
   const nodes = useMemo<DagFlowNode[]>(
     () =>
       process
-        ? Array.from(process.dag.vertices.values(), (vertex) => ({
-            id: vertex.id,
-            type: 'dagVertex',
-            position: vertex.position,
-            data: {
-              vertex,
-              compact: true,
-              inCausalHistory: causalHistory.vertexIds.has(vertex.id),
-            },
-            selected: vertex.id === selectedVertexId,
-            className: [
-              'dag-flow-node--compact',
-              causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
-            ]
-              .filter(Boolean)
-              .join(' '),
-            draggable: false,
-            connectable: false,
-            deletable: false,
-          }))
+        ? Array.from(process.dag.vertices.values(), (vertex) => {
+            const slot = slotInfo.get(vertex.id)
+            return {
+              id: vertex.id,
+              type: 'dagVertex',
+              position: vertex.position,
+              data: {
+                vertex,
+                compact: true,
+                inCausalHistory: causalHistory.vertexIds.has(vertex.id),
+                slotCount: slot?.count ?? 1,
+                slotIndex: slot?.index ?? 0,
+              },
+              selected: vertex.id === selectedVertexId,
+              className: [
+                'dag-flow-node--compact',
+                causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
+                (slot?.count ?? 1) > 1 ? 'dag-flow-node--equivocation' : undefined,
+              ]
+                .filter(Boolean)
+                .join(' '),
+              draggable: false,
+              connectable: false,
+              deletable: false,
+            }
+          })
         : [],
-    [causalHistory, process, selectedVertexId],
+    [causalHistory, process, selectedVertexId, slotInfo],
   )
 
   const edges = useMemo<SimulationFlowEdge[]>(
@@ -182,6 +192,7 @@ export function SimulationCanvas() {
 
         <Panel position="bottom-left" className="simulation-canvas-legend">
           <span><i className="legend-line legend-line--strong" />Strong predecessor edge</span>
+          <span><i className="legend-swatch legend-swatch--equivocation" />Equivocation slot</span>
           <small>Read-only process projection</small>
         </Panel>
 

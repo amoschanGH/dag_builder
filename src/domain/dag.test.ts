@@ -3,6 +3,7 @@ import {
   createLocalDag,
   getLocalDagRoundGridBounds,
   getRoundGridBounds,
+  getVertexSlotInfo,
   insertVertex,
   layoutVerticesByRounds,
   roundGridColumnCenter,
@@ -70,6 +71,22 @@ describe('round-grid layout', () => {
       maxRound: 3,
       rounds: [1, 2, 3, 4],
     })
+  })
+
+  it('allows multiple vertices in one source-round slot and offsets them', () => {
+    let dag = createLocalDag()
+    dag = insertVertex(dag, vertex('equivocation-a', 1, 1)) ?? dag
+    dag = insertVertex(dag, vertex('equivocation-b', 1, 1)) ?? dag
+    dag = layoutVerticesByRounds(dag)
+    const slotInfo = getVertexSlotInfo(dag.vertices.values())
+
+    expect(dag.vertices.size).toBe(2)
+    expect(dag.rounds.get(1)).toEqual(new Set(['equivocation-a', 'equivocation-b']))
+    expect(slotInfo.get('equivocation-a')).toEqual({ index: 0, count: 2 })
+    expect(slotInfo.get('equivocation-b')).toEqual({ index: 1, count: 2 })
+    expect(dag.vertices.get('equivocation-a')?.position).not.toEqual(
+      dag.vertices.get('equivocation-b')?.position,
+    )
   })
 
   it('lays vertices out in ascending round columns', () => {

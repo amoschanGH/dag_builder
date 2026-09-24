@@ -100,6 +100,24 @@ describe('Simulator', () => {
     expect(snapshot.processes.get(0)?.dag.rounds.get(1)).toEqual(new Set(['local-1']))
   })
 
+  it('allows equivocation blocks in the same local source-round slot', () => {
+    const simulator = new Simulator({
+      processIds: [0, 1, 2],
+      strategy: new SimpleDelayedBroadcast(1),
+      faultTolerance: 1,
+    })
+    expect(simulator.createVertex(0, content('equivocation-a', 1)).ok).toBe(true)
+    expect(simulator.createVertex(0, content('equivocation-b', 1)).ok).toBe(true)
+    expect(simulator.flushBuffer(0, 'equivocation-a').ok).toBe(true)
+    expect(simulator.flushBuffer(0, 'equivocation-b').ok).toBe(true)
+
+    const dag = simulator.snapshot().processes.get(0)?.dag
+    expect(dag?.rounds.get(1)?.size).toBe(2)
+    expect(dag?.vertices.get('equivocation-a')?.position).not.toEqual(
+      dag?.vertices.get('equivocation-b')?.position,
+    )
+  })
+
   it('broadcasts delayed messages without delivering immediately', () => {
     const simulator = createSimulator([0, 1, 2], 3, {
       vertices: [dagVertex('v1', 0)],
@@ -232,7 +250,7 @@ describe('Simulator', () => {
     expect(simulator.snapshot().queue).toHaveLength(0)
   })
 
-  it('rejects conflicting source-round content without overwriting', () => {
+  it('accepts equivocation blocks at the same source-round slot', () => {
     const simulator = createSimulator([0, 1], 1, {
       vertices: [dagVertex('v1', 2)],
       edges: [],
@@ -244,7 +262,7 @@ describe('Simulator', () => {
 
     const process = simulator.snapshot().processes.get(1)
     expect(process?.buffer.has('local-1')).toBe(true)
-    expect(process?.buffer.has('v1')).toBe(false)
+    expect(process?.buffer.has('v1')).toBe(true)
   })
 
   it('enforces the per-tick event budget', () => {

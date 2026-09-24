@@ -75,8 +75,8 @@ export function VertexComposer({ onClose }: { onClose: () => void }) {
     setError(
       result.reason === 'invalid-reference'
         ? 'Strong references must point to vertices in the immediately previous round.'
-        : result.reason === 'duplicate-slot'
-          ? 'That source already has a vertex in this round.'
+        : result.reason === 'duplicate-id'
+          ? 'A block with this generated ID already exists.'
           : 'Use non-negative whole-number source and round values.',
     )
   }
@@ -119,6 +119,11 @@ export function VertexComposer({ onClose }: { onClose: () => void }) {
           />
         </label>
       </div>
+
+      <p className="vertex-composer__equivocation-hint">
+        Use an existing source and round to model an equivocation block; conflicting blocks
+        share a slot and are highlighted.
+      </p>
 
       <div className="vertex-composer__references">
         <div className="vertex-composer__references-heading">

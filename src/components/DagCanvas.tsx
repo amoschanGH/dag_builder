@@ -20,7 +20,11 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from '@xyflow/react'
-import { getLocalDagRoundGridBounds, type DagEdge } from '../domain/dag'
+import {
+  getLocalDagRoundGridBounds,
+  getVertexSlotInfo,
+  type DagEdge,
+} from '../domain/dag'
 import { getStrongCausalHistory, getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
@@ -54,6 +58,7 @@ function DagFlow() {
   const { fitView } = useReactFlow<DagFlowNode, DagFlowEdge>()
 
   const [composerOpen, setComposerOpen] = useState(false)
+  const slotInfo = useMemo(() => getVertexSlotInfo(vertices.values()), [vertices])
   const gridBounds = useMemo(
     () =>
       layoutMode === 'round-grid' ? getLocalDagRoundGridBounds(dag) : null,
@@ -113,25 +118,31 @@ function DagFlow() {
 
   const nodes = useMemo<DagFlowNode[]>(
     () =>
-      Array.from(vertices.values(), (vertex) => ({
-        id: vertex.id,
-        type: 'dagVertex',
-        position: vertex.position,
-        data: {
-          vertex,
-          compact: layoutMode === 'round-grid',
-          inCausalHistory: causalHistory.vertexIds.has(vertex.id),
-        },
-        selected: vertex.id === selectedVertexId,
-        className: [
-          layoutMode === 'round-grid' ? 'dag-flow-node--compact' : undefined,
-          causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
-        ]
-          .filter(Boolean)
-          .join(' ') || undefined,
-        deletable: true,
-      })),
-    [causalHistory, layoutMode, selectedVertexId, vertices],
+      Array.from(vertices.values(), (vertex) => {
+        const slot = slotInfo.get(vertex.id)
+        return {
+          id: vertex.id,
+          type: 'dagVertex',
+          position: vertex.position,
+          data: {
+            vertex,
+            compact: layoutMode === 'round-grid',
+            inCausalHistory: causalHistory.vertexIds.has(vertex.id),
+            slotCount: slot?.count ?? 1,
+            slotIndex: slot?.index ?? 0,
+          },
+          selected: vertex.id === selectedVertexId,
+          className: [
+            layoutMode === 'round-grid' ? 'dag-flow-node--compact' : undefined,
+            causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
+            (slot?.count ?? 1) > 1 ? 'dag-flow-node--equivocation' : undefined,
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
+          deletable: true,
+        }
+      }),
+    [causalHistory, layoutMode, selectedVertexId, slotInfo, vertices],
   )
 
   const flowEdges = useMemo<DagFlowEdge[]>(
