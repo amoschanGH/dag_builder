@@ -84,8 +84,27 @@ describe('round-grid layout', () => {
     expect(dag.rounds.get(1)).toEqual(new Set(['equivocation-a', 'equivocation-b']))
     expect(slotInfo.get('equivocation-a')).toEqual({ index: 0, count: 2 })
     expect(slotInfo.get('equivocation-b')).toEqual({ index: 1, count: 2 })
-    expect(dag.vertices.get('equivocation-a')?.position).not.toEqual(
-      dag.vertices.get('equivocation-b')?.position,
+    const firstPosition = dag.vertices.get('equivocation-a')?.position
+    const secondPosition = dag.vertices.get('equivocation-b')?.position
+    expect(firstPosition).toEqual({ x: 100, y: 41 })
+    expect(secondPosition).toEqual({ x: 100, y: 119 })
+    expect(getLocalDagRoundGridBounds(dag).rowHeight).toBe(156)
+  })
+
+  it('rebuilds the round index while re-gridding', () => {
+    let dag = createLocalDag()
+    dag = insertVertex(dag, vertex('one', 1, 1)) ?? dag
+    dag = insertVertex(dag, vertex('two', 1, 1)) ?? dag
+    const staleDag = {
+      ...dag,
+      rounds: new Map([[99, new Set(['one', 'two'])]]),
+    }
+    const reGridded = layoutVerticesByRounds(staleDag)
+
+    expect(reGridded.rounds.has(99)).toBe(false)
+    expect(reGridded.rounds.get(1)).toEqual(new Set(['one', 'two']))
+    expect(reGridded.vertices.get('one')?.position?.x).toBe(
+      reGridded.vertices.get('two')?.position?.x,
     )
   })
 

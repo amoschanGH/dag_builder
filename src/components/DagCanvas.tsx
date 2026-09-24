@@ -54,7 +54,7 @@ function DagFlow() {
   const selectEdge = useDagStore((state) => state.selectEdge)
   const clearSelection = useDagStore((state) => state.clearSelection)
   const setLayoutMode = useDagStore((state) => state.setLayoutMode)
-  const autoLayout = useDagStore((state) => state.autoLayout)
+  const regrid = useDagStore((state) => state.regrid)
   const { fitView } = useReactFlow<DagFlowNode, DagFlowEdge>()
 
   const [composerOpen, setComposerOpen] = useState(false)
@@ -73,6 +73,7 @@ function DagFlow() {
       gridBounds.nextRound,
       gridBounds.minSource,
       gridBounds.maxSource,
+      gridBounds.rowHeight,
       gridBounds.rounds.join(','),
       gridBounds.sources.join(','),
       vertices.size,
@@ -280,7 +281,7 @@ function DagFlow() {
         >
           Freeform
         </button>
-        <button type="button" className="tool-button tool-button--quiet" onClick={autoLayout}>
+        <button type="button" className="tool-button tool-button--quiet" onClick={regrid}>
           Re-grid
         </button>
         <button type="button" className="tool-button tool-button--quiet" onClick={() => void fitView({ padding: 0.2, duration: 350 })}>

@@ -138,6 +138,7 @@ export const DAG_LAYOUT = {
   rowHeight: 125,
   nodeWidth: 72,
   nodeHeight: 72,
+  equivocationGap: 12,
   headerWidth: 70,
   headerHeight: 45,
   minRound: 1,
@@ -165,6 +166,7 @@ export interface RoundGridBounds {
 function createRoundGridBounds(
   roundValues: Iterable<number>,
   sourceValues: Iterable<number>,
+  maxSlotCount = 1,
 ): RoundGridBounds {
   const roundsPresent = Array.from(new Set(roundValues)).sort(
     (left, right) => left - right,
@@ -191,6 +193,11 @@ function createRoundGridBounds(
     { length: maxSource - minSource + 1 },
     (_, index) => minSource + index,
   )
+  const rowHeight = Math.max(
+    DAG_LAYOUT.rowHeight,
+    maxSlotCount * DAG_LAYOUT.nodeHeight +
+      Math.max(0, maxSlotCount - 1) * DAG_LAYOUT.equivocationGap,
+  )
 
   return {
     minRound,
@@ -203,7 +210,7 @@ function createRoundGridBounds(
     originX: DAG_LAYOUT.originX,
     originY: DAG_LAYOUT.originY,
     columnWidth: DAG_LAYOUT.columnWidth,
-    rowHeight: DAG_LAYOUT.rowHeight,
+    rowHeight,
     nodeWidth: DAG_LAYOUT.nodeWidth,
     nodeHeight: DAG_LAYOUT.nodeHeight,
     headerWidth: DAG_LAYOUT.headerWidth,
@@ -215,18 +222,30 @@ export function getRoundGridBounds(
   vertices: Iterable<DagVertex>,
 ): RoundGridBounds {
   const values = Array.from(vertices)
+  const slotInfo = getVertexSlotInfo(values)
+  const maxSlotCount = Math.max(
+    1,
+    ...Array.from(slotInfo.values(), (slot) => slot.count),
+  )
   return createRoundGridBounds(
     values.map((vertex) => vertex.round),
     values.map((vertex) => vertex.source),
+    maxSlotCount,
   )
 }
 
 export function getLocalDagRoundGridBounds(dag: LocalDag): RoundGridBounds {
   const roundValues = new Set(dag.rounds.keys())
   for (const vertex of dag.vertices.values()) roundValues.add(vertex.round)
+  const slotInfo = getVertexSlotInfo(dag.vertices.values())
+  const maxSlotCount = Math.max(
+    1,
+    ...Array.from(slotInfo.values(), (slot) => slot.count),
+  )
   return createRoundGridBounds(
     roundValues,
     Array.from(dag.vertices.values(), (vertex) => vertex.source),
+    maxSlotCount,
   )
 }
 
@@ -237,22 +256,15 @@ function roundGridSlotOffset(
 ): Point {
   if (count <= 1) return { x: 0, y: 0 }
 
-  const columns = Math.ceil(Math.sqrt(count))
-  const rows = Math.ceil(count / columns)
-  const column = index % columns
-  const row = Math.floor(index / columns)
-  const horizontalStep =
-    columns <= 1
-      ? 0
-      : Math.min(78, (bounds.columnWidth - bounds.nodeWidth - 16) / (columns - 1))
-  const verticalStep =
-    rows <= 1
-      ? 0
-      : Math.min(70, (bounds.rowHeight - bounds.nodeHeight - 12) / (rows - 1))
+  // Equivocations stay in the same source column and are stacked vertically.
+  const verticalStep = Math.min(
+    78,
+    Math.max(40, (bounds.rowHeight - bounds.nodeHeight) / (count - 1)),
+  )
 
   return {
-    x: (column - (columns - 1) / 2) * horizontalStep,
-    y: (row - (rows - 1) / 2) * verticalStep,
+    x: 0,
+    y: (index - (count - 1) / 2) * verticalStep,
   }
 }
 
@@ -289,7 +301,14 @@ export function roundGridRowCenter(
 }
 
 export function layoutVerticesByRounds(dag: LocalDag): LocalDag {
-  const bounds = getLocalDagRoundGridBounds(dag)
+  // Rebuild the round index before calculating the grid so Re-grid always
+  // reflects the current local DAG, including equivocation slots.
+  const rounds = new Map<number, Set<VertexId>>()
+  for (const vertex of dag.vertices.values()) {
+    addToRoundIndex(rounds, vertex.round, vertex.id)
+  }
+  const indexedDag = { ...dag, rounds }
+  const bounds = getLocalDagRoundGridBounds(indexedDag)
   const slotInfo = getVertexSlotInfo(dag.vertices.values())
   const vertices = new Map(
     Array.from(dag.vertices.values(), (vertex) => {
@@ -310,7 +329,7 @@ export function layoutVerticesByRounds(dag: LocalDag): LocalDag {
     }),
   )
 
-  return { ...dag, vertices }
+  return { ...indexedDag, vertices }
 }
 
 export function insertVertex(

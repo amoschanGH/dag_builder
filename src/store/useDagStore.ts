@@ -73,6 +73,7 @@ interface DagActions {
   selectEdge: (edgeId: EdgeId | null) => void
   clearSelection: () => void
   setLayoutMode: (mode: LayoutMode) => void
+  regrid: () => void
   autoLayout: () => void
   clearDag: () => void
   loadExample: () => void
@@ -517,11 +518,15 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     })
   },
 
-  autoLayout: () => {
+  regrid: () => {
     set((state) => ({
       layoutMode: 'round-grid',
       dag: layoutVerticesByRounds(state.dag),
     }))
+  },
+
+  autoLayout: () => {
+    get().regrid()
   },
 
   clearDag: () => {
