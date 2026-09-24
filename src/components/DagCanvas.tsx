@@ -21,7 +21,7 @@ import {
   type OnNodesChange,
 } from '@xyflow/react'
 import type { DagEdge } from '../domain/dag'
-import { getStrongReferenceDetails } from '../domain/strongReferences'
+import { getStrongCausalHistory, getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
 import { RoundGrid } from './RoundGrid'
@@ -61,27 +61,35 @@ function DagFlow() {
   }, [fitView, vertices.size])
 
   const causalHistory = useMemo(() => {
-    const selectedEdge = selectedEdgeId ? edges.get(selectedEdgeId) : undefined
-    const details = getStrongReferenceDetails(
-      selectedEdge,
-      vertices,
-      edges.values(),
-    )
-    return {
-      vertexIds: new Set(
-        details
-          ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
-          : [],
-      ),
-      edgeIds: new Set(
-        details
-          ? details.history
-              .map((entry) => entry.viaEdgeId)
-              .filter((edgeId): edgeId is string => edgeId !== null)
-          : [],
-      ),
+    if (selectedEdgeId) {
+      const selectedEdge = edges.get(selectedEdgeId)
+      const details = getStrongReferenceDetails(
+        selectedEdge,
+        vertices,
+        edges.values(),
+      )
+      return {
+        vertexIds: new Set(
+          details
+            ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
+            : [],
+        ),
+        edgeIds: new Set(
+          details
+            ? details.history
+                .map((entry) => entry.viaEdgeId)
+                .filter((edgeId): edgeId is string => edgeId !== null)
+            : [],
+        ),
+      }
     }
-  }, [edges, selectedEdgeId, vertices])
+
+    if (selectedVertexId) {
+      return getStrongCausalHistory(selectedVertexId, vertices, edges.values())
+    }
+
+    return { vertexIds: new Set<string>(), edgeIds: new Set<string>() }
+  }, [edges, selectedEdgeId, selectedVertexId, vertices])
 
   const nodes = useMemo<DagFlowNode[]>(
     () =>

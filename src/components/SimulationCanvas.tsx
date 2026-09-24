@@ -11,7 +11,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react'
 import type { DagEdge } from '../domain/dag'
-import { getStrongReferenceDetails } from '../domain/strongReferences'
+import { getStrongCausalHistory, getStrongReferenceDetails } from '../domain/strongReferences'
 import { useSimulationStore } from '../store/useSimulationStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
 
@@ -34,27 +34,39 @@ export function SimulationCanvas() {
   const process = snapshot.processes.get(activeProcessId)
 
   const causalHistory = useMemo(() => {
-    const selectedEdge = selectedEdgeId ? process?.edges.get(selectedEdgeId) : undefined
-    const details = getStrongReferenceDetails(
-      selectedEdge,
-      process?.dag.vertices ?? new Map(),
-      process?.edges.values() ?? [],
-    )
-    return {
-      vertexIds: new Set(
-        details
-          ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
-          : [],
-      ),
-      edgeIds: new Set(
-        details
-          ? details.history
-              .map((entry) => entry.viaEdgeId)
-              .filter((edgeId): edgeId is string => edgeId !== null)
-          : [],
-      ),
+    if (selectedEdgeId) {
+      const selectedEdge = process?.edges.get(selectedEdgeId)
+      const details = getStrongReferenceDetails(
+        selectedEdge,
+        process?.dag.vertices ?? new Map(),
+        process?.edges.values() ?? [],
+      )
+      return {
+        vertexIds: new Set(
+          details
+            ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
+            : [],
+        ),
+        edgeIds: new Set(
+          details
+            ? details.history
+                .map((entry) => entry.viaEdgeId)
+                .filter((edgeId): edgeId is string => edgeId !== null)
+            : [],
+        ),
+      }
     }
-  }, [process, selectedEdgeId])
+
+    if (selectedVertexId && process) {
+      return getStrongCausalHistory(
+        selectedVertexId,
+        process.dag.vertices,
+        process.edges.values(),
+      )
+    }
+
+    return { vertexIds: new Set<string>(), edgeIds: new Set<string>() }
+  }, [process, selectedEdgeId, selectedVertexId])
 
   const nodes = useMemo<DagFlowNode[]>(
     () =>

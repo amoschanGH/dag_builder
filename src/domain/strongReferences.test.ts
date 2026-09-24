@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DagEdge, DagVertex } from './dag'
-import { getStrongReferenceDetails } from './strongReferences'
+import { getStrongCausalHistory, getStrongReferenceDetails } from './strongReferences'
 
 function vertex(id: string, source: number, round: number): DagVertex {
   return {
@@ -46,6 +46,21 @@ describe('strong reference details', () => {
     expect(details?.history[1]?.viaEdgeId).toBe('b-a')
   })
 
+  it('traces causal history when a vertex is focused', () => {
+    const vertices = new Map(
+      [vertex('c', 1, 3), vertex('b', 2, 2), vertex('a', 3, 1)].map((item) => [
+        item.id,
+        item,
+      ]),
+    )
+    const edges = [edge('c-b', 'c', 'b'), edge('b-a', 'b', 'a')]
+
+    expect(getStrongCausalHistory('c', vertices, edges)).toEqual({
+      vertexIds: new Set(['c', 'b', 'a']),
+      edgeIds: new Set(['c-b', 'b-a']),
+    })
+  })
+
   it('does not treat weak edges as strong references', () => {
     const vertices = new Map([
       ['b', vertex('b', 1, 2)],
@@ -59,5 +74,9 @@ describe('strong reference details', () => {
     }
 
     expect(getStrongReferenceDetails(weakEdge, vertices, [weakEdge])).toBeNull()
+    expect(getStrongCausalHistory('b', vertices, [weakEdge])).toEqual({
+      vertexIds: new Set(['b']),
+      edgeIds: new Set(),
+    })
   })
 })
