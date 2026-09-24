@@ -4,6 +4,7 @@ import type { DagVertex } from '../domain/dag'
 export type DagVertexNodeData = {
   vertex: DagVertex
   compact?: boolean
+  inCausalHistory?: boolean
 } & Record<string, unknown>
 
 export type DagFlowNode = Node<DagVertexNodeData, 'dagVertex'>
@@ -17,13 +18,13 @@ const statusLabels = {
 } as const
 
 export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
-  const { vertex, compact = false } = data
+  const { vertex, compact = false, inCausalHistory = false } = data
 
   if (compact) {
     return (
       <div
-        className={`dag-node dag-node--compact ${selected ? 'dag-node--selected' : ''}`}
-        aria-label={`Vertex ${vertex.id}, source ${vertex.source}, round ${vertex.round}`}
+        className={`dag-node dag-node--compact ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''}`}
+        aria-label={`Vertex ${vertex.id}, source ${vertex.source}, round ${vertex.round}${inCausalHistory ? ', in causal history' : ''}`}
       >
         <Handle
           type="target"
@@ -45,8 +46,8 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
 
   return (
     <div
-      className={`dag-node ${selected ? 'dag-node--selected' : ''}`}
-      aria-label={`Vertex ${vertex.id}`}
+      className={`dag-node ${selected ? 'dag-node--selected' : ''} ${inCausalHistory ? 'dag-node--causal-history' : ''}`}
+      aria-label={`Vertex ${vertex.id}${inCausalHistory ? ', in causal history' : ''}`}
     >
       <Handle
         type="target"

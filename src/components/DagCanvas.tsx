@@ -22,6 +22,7 @@ import {
   type OnNodesChange,
 } from '@xyflow/react'
 import type { DagEdge } from '../domain/dag'
+import { getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
 import { RoundGrid } from './RoundGrid'
@@ -39,6 +40,7 @@ function DagFlow() {
   const vertices = useDagStore((state) => state.dag.vertices)
   const edges = useDagStore((state) => state.edges)
   const selectedVertexId = useDagStore((state) => state.selectedVertexId)
+  const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
   const layoutMode = useDagStore((state) => state.layoutMode)
   const moveVertex = useDagStore((state) => state.updateVertex)
   const removeVertex = useDagStore((state) => state.removeVertex)
@@ -60,18 +62,50 @@ function DagFlow() {
     }
   }, [fitView, vertices.size])
 
+  const causalHistory = useMemo(() => {
+    const selectedEdge = selectedEdgeId ? edges.get(selectedEdgeId) : undefined
+    const details = getStrongReferenceDetails(
+      selectedEdge,
+      vertices,
+      edges.values(),
+    )
+    return {
+      vertexIds: new Set(
+        details
+          ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
+          : [],
+      ),
+      edgeIds: new Set(
+        details
+          ? details.history
+              .map((entry) => entry.viaEdgeId)
+              .filter((edgeId): edgeId is string => edgeId !== null)
+          : [],
+      ),
+    }
+  }, [edges, selectedEdgeId, vertices])
+
   const nodes = useMemo<DagFlowNode[]>(
     () =>
       Array.from(vertices.values(), (vertex) => ({
         id: vertex.id,
         type: 'dagVertex',
         position: vertex.position,
-        data: { vertex, compact: layoutMode === 'round-grid' },
+        data: {
+          vertex,
+          compact: layoutMode === 'round-grid',
+          inCausalHistory: causalHistory.vertexIds.has(vertex.id),
+        },
         selected: vertex.id === selectedVertexId,
-        className: layoutMode === 'round-grid' ? 'dag-flow-node--compact' : undefined,
+        className: [
+          layoutMode === 'round-grid' ? 'dag-flow-node--compact' : undefined,
+          causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
         deletable: true,
       })),
-    [layoutMode, selectedVertexId, vertices],
+    [causalHistory, layoutMode, selectedVertexId, vertices],
   )
 
   const flowEdges = useMemo<DagFlowEdge[]>(
@@ -80,7 +114,8 @@ function DagFlow() {
         .filter((edge) => edge.kind === 'strong')
         .map((edge) => {
         const focused = selectedVertexId !== null && edge.source === selectedVertexId
-        const color = focused ? '#fbbf24' : '#8ab4ff'
+        const inHistory = causalHistory.edgeIds.has(edge.id)
+        const color = focused ? '#fbbf24' : inHistory ? '#c084fc' : '#8ab4ff'
         return {
           id: edge.id,
           source: edge.source,
@@ -91,8 +126,12 @@ function DagFlow() {
           animated: false,
           style: {
             stroke: color,
-            strokeWidth: focused ? 3.5 : 1.7,
-            filter: focused ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))' : undefined,
+            strokeWidth: focused ? 3.5 : inHistory ? 2.8 : 1.7,
+            filter: focused
+              ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))'
+              : inHistory
+                ? 'drop-shadow(0 0 3px rgb(192 132 252 / 70%))'
+                : undefined,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -103,7 +142,7 @@ function DagFlow() {
           ariaLabel: `${edge.kind} edge from ${edge.source} to ${edge.target}`,
         }
       }),
-    [edges, selectedVertexId],
+    [causalHistory, edges, selectedVertexId],
   )
 
   const handleNodesChange: OnNodesChange<DagFlowNode> = useCallback(

@@ -11,6 +11,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react'
 import type { DagEdge } from '../domain/dag'
+import { getStrongReferenceDetails } from '../domain/strongReferences'
 import { useSimulationStore } from '../store/useSimulationStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
 
@@ -27,9 +28,33 @@ export function SimulationCanvas() {
   const snapshot = useSimulationStore((state) => state.snapshot)
   const activeProcessId = useSimulationStore((state) => state.activeProcessId)
   const selectedVertexId = useSimulationStore((state) => state.selectedVertexId)
+  const selectedEdgeId = useSimulationStore((state) => state.selectedEdgeId)
   const selectVertex = useSimulationStore((state) => state.selectVertex)
   const selectEdge = useSimulationStore((state) => state.selectEdge)
   const process = snapshot.processes.get(activeProcessId)
+
+  const causalHistory = useMemo(() => {
+    const selectedEdge = selectedEdgeId ? process?.edges.get(selectedEdgeId) : undefined
+    const details = getStrongReferenceDetails(
+      selectedEdge,
+      process?.dag.vertices ?? new Map(),
+      process?.edges.values() ?? [],
+    )
+    return {
+      vertexIds: new Set(
+        details
+          ? [details.from.id, ...details.history.map((entry) => entry.vertex.id)]
+          : [],
+      ),
+      edgeIds: new Set(
+        details
+          ? details.history
+              .map((entry) => entry.viaEdgeId)
+              .filter((edgeId): edgeId is string => edgeId !== null)
+          : [],
+      ),
+    }
+  }, [process, selectedEdgeId])
 
   const nodes = useMemo<DagFlowNode[]>(
     () =>
@@ -38,15 +63,24 @@ export function SimulationCanvas() {
             id: vertex.id,
             type: 'dagVertex',
             position: vertex.position,
-            data: { vertex, compact: true },
+            data: {
+              vertex,
+              compact: true,
+              inCausalHistory: causalHistory.vertexIds.has(vertex.id),
+            },
             selected: vertex.id === selectedVertexId,
-            className: 'dag-flow-node--compact',
+            className: [
+              'dag-flow-node--compact',
+              causalHistory.vertexIds.has(vertex.id) ? 'dag-flow-node--history' : undefined,
+            ]
+              .filter(Boolean)
+              .join(' '),
             draggable: false,
             connectable: false,
             deletable: false,
           }))
         : [],
-    [process, selectedVertexId],
+    [causalHistory, process, selectedVertexId],
   )
 
   const edges = useMemo<SimulationFlowEdge[]>(
@@ -56,7 +90,8 @@ export function SimulationCanvas() {
             .filter((edge) => edge.kind === 'strong')
             .map((edge) => {
             const focused = selectedVertexId !== null && edge.source === selectedVertexId
-            const color = focused ? '#fbbf24' : '#8ab4ff'
+            const inHistory = causalHistory.edgeIds.has(edge.id)
+            const color = focused ? '#fbbf24' : inHistory ? '#c084fc' : '#8ab4ff'
             return {
               id: edge.id,
               source: edge.source,
@@ -67,8 +102,12 @@ export function SimulationCanvas() {
               animated: false,
               style: {
                 stroke: color,
-                strokeWidth: focused ? 3.5 : 2,
-                filter: focused ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))' : undefined,
+                strokeWidth: focused ? 3.5 : inHistory ? 2.8 : 2,
+                filter: focused
+                  ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))'
+                  : inHistory
+                    ? 'drop-shadow(0 0 3px rgb(192 132 252 / 70%))'
+                    : undefined,
               },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -79,7 +118,7 @@ export function SimulationCanvas() {
             }
           })
         : [],
-    [process, selectedVertexId],
+    [causalHistory, process, selectedVertexId],
   )
 
   return (
