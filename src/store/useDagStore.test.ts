@@ -12,9 +12,9 @@ describe('useDagStore', () => {
 
     expect(dag.vertices.get(vertexId)).toMatchObject({
       id: vertexId,
-      source: 0,
+      source: 1,
       round: 1,
-      position: { x: 20, y: 40 },
+      position: { x: 100, y: 80 },
       status: 'buffered',
     })
     expect(dag.rounds.get(1)).toEqual(new Set([vertexId]))
@@ -34,29 +34,47 @@ describe('useDagStore', () => {
     expect(dag.rounds.get(1)).toEqual(new Set([vertexId]))
   })
 
+  it('automatically builds strong edges to the previous round', () => {
+    useDagStore.getState().addVertex()
+    useDagStore.getState().addVertex()
+    useDagStore.getState().addVertex()
+
+    const { dag, edges } = useDagStore.getState()
+    const newest = Array.from(dag.vertices.values()).find((vertex) => vertex.round === 3)
+    expect(newest).toBeDefined()
+    expect(
+      Array.from(edges.values()).filter(
+        (edge) => edge.source === newest?.id && edge.kind === 'strong',
+      ),
+    ).toHaveLength(1)
+    expect(Array.from(edges.values()).every((edge) => edge.kind === 'strong')).toBe(true)
+  })
+
   it('rejects duplicate source-round slots', () => {
     const first = useDagStore.getState().addVertex()
     const second = useDagStore.getState().addVertex()
 
-    expect(useDagStore.getState().updateVertex(second, { source: 0 })).toBe(
+    expect(
+      useDagStore.getState().updateVertex(second, { source: 1, round: 1 }),
+    ).toBe(
       'duplicate-slot',
     )
     expect(useDagStore.getState().dag.vertices.get(second)?.source).toBe(1)
     expect(useDagStore.getState().dag.vertices.has(first)).toBe(true)
   })
 
-  it('adds typed edges and rejects cycles', () => {
+  it('keeps editor edges strong-only and rejects non-predecessor links', () => {
     const first = useDagStore.getState().addVertex()
     const second = useDagStore.getState().addVertex()
     const third = useDagStore.getState().addVertex()
 
-    const forward = useDagStore.getState().addEdge(first, second, 'strong')
-    expect(forward.ok).toBe(true)
-    expect(useDagStore.getState().addEdge(second, third, 'weak').ok).toBe(true)
-
-    const cycle = useDagStore.getState().addEdge(third, first, 'strong')
-    expect(cycle).toEqual({ ok: false, reason: 'cycle' })
+    const invalid = useDagStore.getState().addEdge(third, first, 'strong')
+    expect(invalid).toEqual({ ok: false, reason: 'invalid-edge' })
     expect(useDagStore.getState().edges.size).toBe(2)
+    expect(Array.from(useDagStore.getState().edges.values()).every((edge) => edge.kind === 'strong')).toBe(true)
+    expect(useDagStore.getState().dag.vertices.has(first)).toBe(true)
+    expect(useDagStore.getState().dag.vertices.has(second)).toBe(true)
+    expect(useDagStore.getState().dag.vertices.has(third)).toBe(true)
   })
 
   it('removes incident edges with a deleted vertex', () => {

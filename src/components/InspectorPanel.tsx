@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { VERTEX_STATUSES, type EdgeKind, type VertexStatus } from '../domain/dag'
+import { VERTEX_STATUSES, type VertexStatus } from '../domain/dag'
 import { useDagStore, type VertexUpdateResult } from '../store/useDagStore'
 
-function statusLabel(status: VertexStatus | EdgeKind) {
+function statusLabel(status: VertexStatus) {
   return status
     .split('-')
     .map((part) => part[0]?.toUpperCase() + part.slice(1))
@@ -18,28 +18,6 @@ function updateMessage(result: VertexUpdateResult) {
   return 'Use a non-negative whole number.'
 }
 
-function EdgeKindButton({
-  kind,
-  active,
-  onClick,
-}: {
-  kind: EdgeKind
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={`inspector-edge-kind inspector-edge-kind--${kind} ${active ? 'is-active' : ''}`}
-      aria-pressed={active}
-      onClick={onClick}
-    >
-      <span className="inspector-edge-kind__line" />
-      {statusLabel(kind)}
-    </button>
-  )
-}
-
 export function InspectorPanel() {
   const dag = useDagStore((state) => state.dag)
   const edges = useDagStore((state) => state.edges)
@@ -47,7 +25,6 @@ export function InspectorPanel() {
   const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
   const updateVertex = useDagStore((state) => state.updateVertex)
   const removeVertex = useDagStore((state) => state.removeVertex)
-  const updateEdgeKind = useDagStore((state) => state.updateEdgeKind)
   const removeEdge = useDagStore((state) => state.removeEdge)
   const [updateError, setUpdateError] = useState<{
     vertexId: string
@@ -85,7 +62,7 @@ export function InspectorPanel() {
 
           <div className="field-grid">
             <label className="field">
-              <span>Process / source</span>
+              <span>Source</span>
               <input
                 type="number"
                 min="0"
@@ -181,27 +158,17 @@ export function InspectorPanel() {
 
       {selectedEdge && (
         <div className="inspector-content">
-          <p className="inspector-intro">Choose how this directed connection is rendered and analyzed.</p>
+          <p className="inspector-intro">Strong edges are generated when a block is created and point to its previous-round predecessors.</p>
           <div className="edge-route">
             <span>{selectedEdge.source}</span>
             <span>→</span>
             <span>{selectedEdge.target}</span>
           </div>
-          <div className="edge-kind-options">
-            <EdgeKindButton
-              kind="strong"
-              active={selectedEdge.kind === 'strong'}
-              onClick={() => updateEdgeKind(selectedEdge.id, 'strong')}
-            />
-            <EdgeKindButton
-              kind="weak"
-              active={selectedEdge.kind === 'weak'}
-              onClick={() => updateEdgeKind(selectedEdge.id, 'weak')}
-            />
+          <div className="strong-edge-readonly">
+            <span className="inspector-edge-kind__line" />
+            <strong>Strong predecessor edge</strong>
+            <small>new block → round {selectedEdge.target}'s predecessor</small>
           </div>
-          <p className="inspector-note">
-            Strong edges are animated and mint-colored. Weak edges are dashed and slate-colored.
-          </p>
           <button type="button" className="danger-button" onClick={() => removeEdge(selectedEdge.id)}>
             Delete edge
           </button>
@@ -218,17 +185,16 @@ export function InspectorPanel() {
           <h3>Explore the local DAG</h3>
           <p>Select a vertex or edge to inspect and edit it.</p>
           <ol>
-            <li><span>1</span>Place vertices on the canvas.</li>
-            <li><span>2</span>Drag a right handle to another vertex.</li>
-            <li><span>3</span>Select an edge to change its kind.</li>
+            <li><span>1</span>Add a block to the current round.</li>
+            <li><span>2</span>Strong edges link it to round r−1.</li>
+            <li><span>3</span>Select a block or edge to inspect it.</li>
           </ol>
         </div>
       )}
 
       <div className="inspector-legend">
         <span>Legend</span>
-        <div><i className="legend-line legend-line--strong" />Strong edge</div>
-        <div><i className="legend-line legend-line--weak" />Weak edge</div>
+        <div><i className="legend-line legend-line--strong" />Strong predecessor edge</div>
       </div>
     </aside>
   )

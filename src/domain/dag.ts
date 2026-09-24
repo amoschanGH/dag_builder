@@ -57,6 +57,7 @@ export type ConnectionRejection =
   | 'self-loop'
   | 'duplicate-edge'
   | 'cycle'
+  | 'invalid-edge'
 
 export type ConnectionValidation =
   | { ok: true }
@@ -113,6 +114,85 @@ export function createLocalDag(processId = 0): LocalDag {
     vertices: new Map(),
     rounds: new Map(),
   }
+}
+
+export const DAG_LAYOUT = {
+  originX: 100,
+  originY: 80,
+  columnWidth: 220,
+  rowHeight: 125,
+  minSource: 1,
+  visibleSourceRows: 4,
+  visibleRoundColumns: 4,
+} as const
+
+export interface RoundGridBounds {
+  minRound: number
+  maxRound: number
+  minSource: number
+  maxSource: number
+  originX: number
+  originY: number
+  columnWidth: number
+  rowHeight: number
+}
+
+export function getRoundGridBounds(
+  vertices: Iterable<DagVertex>,
+): RoundGridBounds {
+  const values = Array.from(vertices)
+  const rounds = values.map((vertex) => vertex.round)
+  const sources = values.map((vertex) => vertex.source)
+  const minRound = rounds.length > 0 ? Math.min(...rounds) : 1
+  const maxRound = Math.max(
+    minRound + DAG_LAYOUT.visibleRoundColumns - 1,
+    rounds.length > 0 ? Math.max(...rounds) : 1,
+  )
+  const minSource = Math.min(
+    DAG_LAYOUT.minSource,
+    sources.length > 0 ? Math.min(...sources) : DAG_LAYOUT.minSource,
+  )
+  const maxSource = Math.max(
+    DAG_LAYOUT.visibleSourceRows,
+    sources.length > 0 ? Math.max(...sources) : DAG_LAYOUT.visibleSourceRows,
+  )
+
+  return {
+    minRound,
+    maxRound,
+    minSource,
+    maxSource,
+    originX: DAG_LAYOUT.originX,
+    originY: DAG_LAYOUT.originY,
+    columnWidth: DAG_LAYOUT.columnWidth,
+    rowHeight: DAG_LAYOUT.rowHeight,
+  }
+}
+
+export function roundGridPosition(
+  round: number,
+  source: number,
+  bounds: RoundGridBounds,
+): Point {
+  return {
+    x: bounds.originX + (round - bounds.minRound) * bounds.columnWidth,
+    y: bounds.originY + (source - bounds.minSource) * bounds.rowHeight,
+  }
+}
+
+export function layoutVerticesByRounds(dag: LocalDag): LocalDag {
+  const bounds = getRoundGridBounds(dag.vertices.values())
+  const vertices = new Map(
+    Array.from(dag.vertices.values(), (vertex) => [
+      vertex.id,
+      {
+        ...vertex,
+        position: roundGridPosition(vertex.round, vertex.source, bounds),
+      },
+    ]),
+  )
+
+  return { ...dag, vertices }
 }
 
 export function insertVertex(

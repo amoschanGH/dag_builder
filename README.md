@@ -3,15 +3,30 @@
 
 ## Current implementation
 
-Phase 1 is a working client-side DAG editor:
+Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
+
+**DAG editor**
 
 - Place, drag, select, inspect, and delete vertices.
-- Create directed strong or weak edges by dragging between vertex handles.
+- Create blocks; strong predecessor edges are generated automatically to the previous round.
 - Prevent self-loops, duplicate directed edges, cycles, and duplicate `(source, round)` slots.
-- Inspect and edit vertex metadata or change an edge's kind.
-- Load a sample DAG or clear the current local view.
+- Load a sample DAG or clear the editor graph.
+- Display the default round/source grid: rounds run left-to-right, sources run top-to-bottom, and strong edges point from a new block toward its previous-round predecessors; switch to Freeform for manual placement.
+- Weak edges are intentionally deferred while the strong-edge/local-round model is established.
 
-State is currently in memory only. Refreshing the page restores the sample graph; there is no backend, persistence, or environment configuration yet.
+**Network simulation**
+
+- Load an immutable snapshot of the editor graph into process 1; other process views start empty.
+- Create local vertices in a process buffer, then explicitly flush them into that process's local DAG.
+- Broadcast accepted DAG vertices to every other process with configurable logical-tick delays.
+- Step one message, run all messages at the next tick, or drain the finite queue.
+- Inspect per-process DAG/buffer counts, pending out-of-order edges, the priority queue, and the event log.
+- Gate round advancement on `2f+1` vertices in the latest local-DAG round; configure `f` in the simulation controls.
+- Capture a new block's strong edges from the creating process's local DAG at the preceding round when the block is created; later DAG changes do not rewrite that snapshot.
+- Require `block.round === ProcessView.statusRound` before adding a received block to a process's local DAG; the slot `(source, round)` must also be empty.
+- Preserve deterministic ordering by delivery tick, enqueue sequence, and message ID.
+
+The simulation is pull-based: it has no wall-clock timer, persistence, backend, network partition, Byzantine behavior, or DAG-Rider ordering yet. Refreshing the page restores the editor sample and discards simulation state.
 
 ## Getting started
 
@@ -33,17 +48,20 @@ npm test
 npm run build
 ```
 
-Run the focused graph-store suite with:
+Run focused suites with:
 
 ```bash
+npm test -- src/simulation
 npm test -- src/store/useDagStore.test.ts
+npm test -- src/store/useSimulationStore.test.ts
 ```
 
 ## Source layout
 
 - `src/domain/dag.ts` contains framework-independent DAG types and invariants.
-- `src/store/useDagStore.ts` owns the in-memory graph and editor actions.
-- `src/components/` adapts graph state to React Flow and provides the inspector.
+- `src/simulation/` contains the pull-based simulator, deterministic priority queue, broadcast strategy interface, and configurable `2f+1` round policy; it has no React, Zustand, browser-clock, or timer dependency.
+- `src/store/useDagStore.ts` owns the editor graph, while `src/store/useSimulationStore.ts` adapts the simulator to UI state.
+- `src/components/` projects editor or process state into React Flow without making either state source-of-truth for the other; `RoundGrid.tsx` provides the reference round/source axes.
 - `src/index.css` loads Tailwind before React Flow styles, as required by React Flow.
 
 ---
@@ -863,7 +881,7 @@ Future protocols can be added without changing the DAG engine.
 
 # Development Roadmap
 
-## Phase 1
+## Phase 1 — Complete
 
 Basic DAG Visualization
 
@@ -873,7 +891,7 @@ Basic DAG Visualization
 
 ---
 
-## Phase 2
+## Phase 2 — Complete
 
 Network Simulation
 

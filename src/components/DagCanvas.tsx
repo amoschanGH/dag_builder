@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -7,25 +8,23 @@ import {
 import {
   Background,
   BackgroundVariant,
-  ConnectionLineType,
   Controls,
   MarkerType,
   MiniMap,
   Panel,
   ReactFlow,
+  ViewportPortal,
   ReactFlowProvider,
   useReactFlow,
-  type Connection,
   type Edge,
-  type IsValidConnection,
   type NodeTypes,
-  type OnConnect,
   type OnEdgesChange,
   type OnNodesChange,
 } from '@xyflow/react'
-import { validateConnection, type ConnectionRejection, type DagEdge } from '../domain/dag'
+import type { DagEdge } from '../domain/dag'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
+import { RoundGrid } from './RoundGrid'
 
 type DagFlowEdge = Edge<
   { edge: DagEdge } & Record<string, unknown>,
@@ -36,32 +35,31 @@ const nodeTypes: NodeTypes = {
   dagVertex: DagVertexNode,
 }
 
-const rejectionMessages: Record<ConnectionRejection, string> = {
-  'missing-vertex': 'Both vertices must exist before connecting them.',
-  'self-loop': 'Self-loops are not valid DAG edges.',
-  'duplicate-edge': 'That directed edge already exists.',
-  cycle: 'That connection would create a cycle.',
-}
-
 function DagFlow() {
   const vertices = useDagStore((state) => state.dag.vertices)
   const edges = useDagStore((state) => state.edges)
   const selectedVertexId = useDagStore((state) => state.selectedVertexId)
   const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
-  const activeEdgeKind = useDagStore((state) => state.activeEdgeKind)
+  const layoutMode = useDagStore((state) => state.layoutMode)
   const moveVertex = useDagStore((state) => state.updateVertex)
   const removeVertex = useDagStore((state) => state.removeVertex)
   const removeEdge = useDagStore((state) => state.removeEdge)
-  const addEdge = useDagStore((state) => state.addEdge)
   const addVertex = useDagStore((state) => state.addVertex)
   const selectVertex = useDagStore((state) => state.selectVertex)
   const selectEdge = useDagStore((state) => state.selectEdge)
   const clearSelection = useDagStore((state) => state.clearSelection)
-  const setActiveEdgeKind = useDagStore((state) => state.setActiveEdgeKind)
+  const setLayoutMode = useDagStore((state) => state.setLayoutMode)
+  const autoLayout = useDagStore((state) => state.autoLayout)
   const { fitView, screenToFlowPosition } = useReactFlow<DagFlowNode, DagFlowEdge>()
 
   const [placementActive, setPlacementActive] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (vertices.size > 0) {
+      void fitView({ padding: 0.2, duration: 0 })
+    }
+  }, [fitView, vertices.size])
 
   const nodes = useMemo<DagFlowNode[]>(
     () =>
@@ -69,18 +67,20 @@ function DagFlow() {
         id: vertex.id,
         type: 'dagVertex',
         position: vertex.position,
-        data: { vertex },
+        data: { vertex, compact: layoutMode === 'round-grid' },
         selected: vertex.id === selectedVertexId,
+        className: layoutMode === 'round-grid' ? 'dag-flow-node--compact' : undefined,
         deletable: true,
       })),
-    [selectedVertexId, vertices],
+    [layoutMode, selectedVertexId, vertices],
   )
 
   const flowEdges = useMemo<DagFlowEdge[]>(
     () =>
-      Array.from(edges.values(), (edge) => {
-        const isStrong = edge.kind === 'strong'
-        const color = isStrong ? '#5eead4' : '#94a3b8'
+      Array.from(edges.values())
+        .filter((edge) => edge.kind === 'strong')
+        .map((edge) => {
+        const color = '#8ab4ff'
         return {
           id: edge.id,
           source: edge.source,
@@ -88,17 +88,11 @@ function DagFlow() {
           type: 'smoothstep',
           data: { edge },
           selected: edge.id === selectedEdgeId,
-          label: edge.kind,
-          animated: isStrong,
+          animated: false,
           style: {
             stroke: color,
-            strokeWidth: edge.id === selectedEdgeId ? 3 : 2,
-            strokeDasharray: isStrong ? undefined : '7 6',
+            strokeWidth: edge.id === selectedEdgeId ? 3 : 1.7,
           },
-          labelStyle: { fill: '#cbd5e1', fontSize: 10, fontWeight: 600 },
-          labelBgStyle: { fill: '#111827', fillOpacity: 0.95 },
-          labelBgPadding: [5, 3],
-          labelBgBorderRadius: 5,
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color,
@@ -139,25 +133,6 @@ function DagFlow() {
     [removeEdge, selectEdge],
   )
 
-  const handleConnect: OnConnect = useCallback(
-    (connection: Connection) => {
-      const result = addEdge(connection.source, connection.target)
-      setNotice(result.ok ? null : rejectionMessages[result.reason])
-    },
-    [addEdge],
-  )
-
-  const isValidConnection: IsValidConnection<DagFlowEdge> = useCallback(
-    (connection) =>
-      validateConnection(
-        vertices,
-        edges.values(),
-        connection.source,
-        connection.target,
-      ).ok,
-    [edges, vertices],
-  )
-
   const handlePaneClick = useCallback(
     (event: ReactMouseEvent<Element>) => {
       if (!placementActive) {
@@ -185,15 +160,8 @@ function DagFlow() {
       onEdgesChange={handleEdgesChange}
       onNodeClick={(_, node) => selectVertex(node.id)}
       onEdgeClick={(_, edge) => selectEdge(edge.id)}
-      onConnect={handleConnect}
       onPaneClick={handlePaneClick}
-      isValidConnection={isValidConnection}
-      connectionLineStyle={{
-        stroke: activeEdgeKind === 'strong' ? '#5eead4' : '#94a3b8',
-        strokeWidth: 2,
-        strokeDasharray: activeEdgeKind === 'weak' ? '7 6' : undefined,
-      }}
-      connectionLineType={ConnectionLineType.SmoothStep}
+      nodesConnectable={false}
       colorMode="dark"
       defaultEdgeOptions={{ type: 'smoothstep' }}
       deleteKeyCode={['Backspace', 'Delete']}
@@ -207,7 +175,12 @@ function DagFlow() {
       proOptions={{ hideAttribution: true }}
       aria-label="Interactive local DAG"
     >
-      <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#263244" />
+      <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1b2a3b" />
+      {layoutMode === 'round-grid' && (
+        <ViewportPortal>
+          <RoundGrid vertices={vertices.values()} />
+        </ViewportPortal>
+      )}
       <MiniMap
         pannable
         zoomable
@@ -223,25 +196,31 @@ function DagFlow() {
           onClick={() => setPlacementActive((active) => !active)}
         >
           <span className="tool-button__icon">+</span>
-          {placementActive ? 'Click canvas…' : 'Place vertex'}
+          {placementActive
+            ? 'Click canvas…'
+            : layoutMode === 'round-grid'
+              ? 'Add next vertex'
+              : 'Place vertex'}
         </button>
         <div className="tool-divider" />
-        <span className="tool-label">New edge</span>
+        <span className="tool-hint">Strong edges: r → r−1 (automatic)</span>
+        <div className="tool-divider" />
         <button
           type="button"
-          className={activeEdgeKind === 'strong' ? 'edge-kind edge-kind--strong is-active' : 'edge-kind edge-kind--strong'}
-          aria-pressed={activeEdgeKind === 'strong'}
-          onClick={() => setActiveEdgeKind('strong')}
+          className={layoutMode === 'round-grid' ? 'tool-button tool-button--active' : 'tool-button'}
+          onClick={() => setLayoutMode('round-grid')}
         >
-          Strong
+          Round grid
         </button>
         <button
           type="button"
-          className={activeEdgeKind === 'weak' ? 'edge-kind edge-kind--weak is-active' : 'edge-kind edge-kind--weak'}
-          aria-pressed={activeEdgeKind === 'weak'}
-          onClick={() => setActiveEdgeKind('weak')}
+          className={layoutMode === 'freeform' ? 'tool-button tool-button--active' : 'tool-button'}
+          onClick={() => setLayoutMode('freeform')}
         >
-          Weak
+          Freeform
+        </button>
+        <button type="button" className="tool-button tool-button--quiet" onClick={autoLayout}>
+          Re-grid
         </button>
         <button type="button" className="tool-button tool-button--quiet" onClick={() => void fitView({ padding: 0.2, duration: 350 })}>
           Fit view
@@ -259,7 +238,9 @@ function DagFlow() {
 
       {vertices.size === 0 && (
         <Panel position="bottom-center" className="empty-canvas-hint">
-          Choose <strong>Place vertex</strong>, then click anywhere on the canvas.
+          {layoutMode === 'round-grid'
+            ? 'Choose Add next vertex to extend the round/source grid.'
+            : 'Choose Place vertex, then click anywhere on the canvas.'}
         </Panel>
       )}
     </ReactFlow>

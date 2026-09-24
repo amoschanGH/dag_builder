@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   insertVertex,
+  layoutVerticesByRounds,
   patchVertex,
   removeVertex,
   createLocalDag,
@@ -27,12 +28,14 @@ export type EdgeAddResult =
   | { ok: true; edge: DagEdge }
   | { ok: false; reason: ConnectionRejection }
 
+export type LayoutMode = 'round-grid' | 'freeform'
+
 interface GraphState {
   dag: LocalDag
   edges: Map<EdgeId, DagEdge>
   selectedVertexId: VertexId | null
   selectedEdgeId: EdgeId | null
-  activeEdgeKind: EdgeKind
+  layoutMode: LayoutMode
   nextVertexSequence: number
   nextEdgeSequence: number
 }
@@ -49,12 +52,13 @@ interface DagActions {
     target: VertexId,
     kind?: EdgeKind,
   ) => EdgeAddResult
-  updateEdgeKind: (edgeId: EdgeId, kind: EdgeKind) => void
+  updateEdgeKind: (edgeId: EdgeId) => void
   removeEdge: (edgeId: EdgeId) => void
   selectVertex: (vertexId: VertexId | null) => void
   selectEdge: (edgeId: EdgeId | null) => void
   clearSelection: () => void
-  setActiveEdgeKind: (kind: EdgeKind) => void
+  setLayoutMode: (mode: LayoutMode) => void
+  autoLayout: () => void
   clearDag: () => void
   loadExample: () => void
 }
@@ -84,37 +88,116 @@ function createVertex(
   }
 }
 
+function sameDirectedPair(left: DagEdge, right: DagEdge) {
+  return left.source === right.source && left.target === right.target
+}
+
+function addStrongPredecessorEdges(
+  vertex: DagVertex,
+  dag: LocalDag,
+  edges: Map<EdgeId, DagEdge>,
+  nextEdgeSequence: number,
+) {
+  const nextEdges = new Map(edges)
+  const predecessors = Array.from(dag.vertices.values())
+    .filter((candidate) => candidate.round === vertex.round - 1)
+    .sort((left, right) => left.source - right.source || left.id.localeCompare(right.id))
+  let sequence = nextEdgeSequence
+
+  for (const predecessor of predecessors) {
+    const existing = Array.from(nextEdges.values()).find((edge) =>
+      sameDirectedPair(edge, {
+        id: '',
+        source: vertex.id,
+        target: predecessor.id,
+        kind: 'strong',
+      }),
+    )
+    if (existing) {
+      if (existing.kind !== 'strong') nextEdges.set(existing.id, { ...existing, kind: 'strong' })
+      continue
+    }
+
+    const id = `auto-${vertex.id}-${predecessor.id}`
+    nextEdges.set(id, {
+      id,
+      source: vertex.id,
+      target: predecessor.id,
+      kind: 'strong',
+    })
+    sequence += 1
+  }
+
+  return { edges: nextEdges, nextEdgeSequence: sequence }
+}
+
+function rebuildStrongEdges(dag: LocalDag) {
+  const vertices = Array.from(dag.vertices.values()).sort(
+    (left, right) =>
+      left.round - right.round ||
+      left.source - right.source ||
+      left.id.localeCompare(right.id),
+  )
+  let edges = new Map<EdgeId, DagEdge>()
+  let sequence = 1
+  for (const vertex of vertices) {
+    const result = addStrongPredecessorEdges(vertex, dag, edges, sequence)
+    edges = result.edges
+    sequence = result.nextEdgeSequence
+  }
+  return { edges, nextEdgeSequence: sequence }
+}
+
 function createExampleGraph(): GraphState {
   let dag = createLocalDag()
   const vertices = [
-    createVertex('v1', 0, 1, { x: 80, y: 150 }, 'committed'),
-    createVertex('v2', 1, 1, { x: 330, y: 60 }, 'in-dag'),
-    createVertex('v3', 2, 1, { x: 330, y: 240 }, 'in-dag'),
-    createVertex('v4', 0, 2, { x: 590, y: 150 }, 'committed'),
-    createVertex('v5', 1, 2, { x: 850, y: 150 }, 'deliverable'),
+    createVertex('v1', 1, 8, { x: 0, y: 0 }, 'committed'),
+    createVertex('v2', 2, 5, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v3', 3, 6, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v4', 4, 5, { x: 0, y: 0 }, 'committed'),
+    createVertex('v5', 1, 6, { x: 0, y: 0 }, 'deliverable'),
+    createVertex('v6', 3, 4, { x: 0, y: 0 }, 'committed'),
+    createVertex('v7', 1, 7, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v8', 2, 7, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v9', 4, 7, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v10', 2, 4, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v11', 4, 4, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v12', 1, 5, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v13', 4, 6, { x: 0, y: 0 }, 'in-dag'),
   ]
 
-  for (const vertex of vertices) {
-    dag = insertVertex(dag, vertex) ?? dag
+  const edges = new Map<EdgeId, DagEdge>()
+  let edgeSequence = 1
+  const orderedVertices = [...vertices].sort(
+    (left, right) =>
+      left.round - right.round ||
+      left.source - right.source ||
+      left.id.localeCompare(right.id),
+  )
+  for (const vertex of orderedVertices) {
+    const nextDag = insertVertex(dag, vertex)
+    if (!nextDag) continue
+    dag = nextDag
+    const result = addStrongPredecessorEdges(
+      vertex,
+      dag,
+      edges,
+      edgeSequence,
+    )
+    edges.clear()
+    for (const [id, edge] of result.edges) edges.set(id, edge)
+    edgeSequence = result.nextEdgeSequence
   }
-
-  const edges = new Map<EdgeId, DagEdge>([
-    ['e1', { id: 'e1', source: 'v1', target: 'v2', kind: 'strong' }],
-    ['e2', { id: 'e2', source: 'v1', target: 'v3', kind: 'strong' }],
-    ['e3', { id: 'e3', source: 'v2', target: 'v3', kind: 'weak' }],
-    ['e4', { id: 'e4', source: 'v2', target: 'v4', kind: 'strong' }],
-    ['e5', { id: 'e5', source: 'v3', target: 'v4', kind: 'strong' }],
-    ['e6', { id: 'e6', source: 'v4', target: 'v5', kind: 'weak' }],
-  ])
+  dag = layoutVerticesByRounds(dag)
 
   return {
     dag,
     edges,
     selectedVertexId: null,
     selectedEdgeId: null,
-    activeEdgeKind: 'strong',
-    nextVertexSequence: 6,
-    nextEdgeSequence: 7,
+    layoutMode: 'round-grid',
+    nextVertexSequence: vertices.length + 1,
+    nextEdgeSequence: edgeSequence,
   }
 }
 
@@ -124,29 +207,47 @@ function createEmptyGraph(): GraphState {
     edges: new Map(),
     selectedVertexId: null,
     selectedEdgeId: null,
-    activeEdgeKind: 'strong',
+    layoutMode: 'round-grid',
     nextVertexSequence: 1,
     nextEdgeSequence: 1,
   }
 }
 
-function nextUnusedSource(dag: LocalDag) {
+function nextUnusedSource(dag: LocalDag, round: number) {
   const usedSources = new Set(
-    Array.from(dag.vertices.values(), (vertex) => vertex.source),
+    Array.from(dag.vertices.values())
+      .filter((vertex) => vertex.round === round)
+      .map((vertex) => vertex.source),
   )
-  let source = 0
+  let source = 1
   while (usedSources.has(source)) source += 1
   return source
+}
+
+function nextRound(dag: LocalDag) {
+  const rounds = Array.from(dag.vertices.values(), (vertex) => vertex.round)
+  return rounds.length === 0 ? 1 : Math.max(...rounds) + 1
 }
 
 function defaultPosition(vertexCount: number): Point {
   const column = vertexCount % 4
   const row = Math.floor(vertexCount / 4)
-  return { x: 80 + column * 230, y: 80 + row * 150 }
+  return { x: 100 + column * 220, y: 80 + row * 125 }
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function isPositionOnlyPatch(patch: VertexPatch) {
+  return (
+    patch.position !== undefined &&
+    patch.source === undefined &&
+    patch.round === undefined &&
+    patch.wave === undefined &&
+    patch.status === undefined &&
+    patch.blockData === undefined
+  )
 }
 
 export const useDagStore = create<DagStore>()((set, get) => ({
@@ -156,22 +257,34 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     const state = get()
     const sequence = state.nextVertexSequence
     const id = `v${sequence}`
-    const source = nextUnusedSource(state.dag)
+    const round = nextRound(state.dag)
+    const source = nextUnusedSource(state.dag, round)
     const vertex = createVertex(
       id,
       source,
-      1,
+      round,
       position ?? defaultPosition(state.dag.vertices.size),
     )
-    const dag = insertVertex(state.dag, vertex)
+    let dag = insertVertex(state.dag, vertex)
 
     if (!dag) return id
+    if (state.layoutMode === 'round-grid') {
+      dag = layoutVerticesByRounds(dag)
+    }
+    const edgeResult = addStrongPredecessorEdges(
+      vertex,
+      dag,
+      state.edges,
+      state.nextEdgeSequence,
+    )
 
     set((current) => ({
       dag,
+      edges: edgeResult.edges,
       selectedVertexId: id,
       selectedEdgeId: null,
       nextVertexSequence: current.nextVertexSequence + 1,
+      nextEdgeSequence: edgeResult.nextEdgeSequence,
     }))
     return id
   },
@@ -182,14 +295,35 @@ export const useDagStore = create<DagStore>()((set, get) => ({
       return 'invalid-value'
     }
 
-    const dag = patchVertex(get().dag, vertexId, patch)
+    const state = get()
+    const dag = patchVertex(state.dag, vertexId, patch)
     if (!dag) {
-      return get().dag.vertices.has(vertexId)
+      return state.dag.vertices.has(vertexId)
         ? 'duplicate-slot'
         : 'not-found'
     }
 
-    set({ dag })
+    const edgeState =
+      patch.source !== undefined || patch.round !== undefined
+        ? rebuildStrongEdges(dag)
+        : null
+    if (state.layoutMode === 'round-grid' && !isPositionOnlyPatch(patch)) {
+      set({
+        dag: layoutVerticesByRounds(dag),
+        ...(edgeState
+          ? { edges: edgeState.edges, nextEdgeSequence: edgeState.nextEdgeSequence }
+          : {}),
+      })
+    } else if (state.layoutMode === 'round-grid' && isPositionOnlyPatch(patch)) {
+      set({ dag, layoutMode: 'freeform' })
+    } else {
+      set({
+        dag,
+        ...(edgeState
+          ? { edges: edgeState.edges, nextEdgeSequence: edgeState.nextEdgeSequence }
+          : {}),
+      })
+    }
     return 'updated'
   },
 
@@ -214,12 +348,26 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     })
   },
 
-  addEdge: (source, target, kind) => {
+  addEdge: (source, target) => {
     const state = get()
-    const edgeKind = kind ?? state.activeEdgeKind
-    const validation = validateConnection(state.dag.vertices, state.edges.values(), source, target)
+    const sourceVertex = state.dag.vertices.get(source)
+    const targetVertex = state.dag.vertices.get(target)
+    if (
+      !sourceVertex ||
+      !targetVertex ||
+      targetVertex.round !== sourceVertex.round - 1
+    ) {
+      return { ok: false, reason: 'invalid-edge' as const }
+    }
+    const validation = validateConnection(
+      state.dag.vertices,
+      state.edges.values(),
+      source,
+      target,
+    )
 
     if (!validation.ok) return validation
+    const edgeKind = 'strong' as const
 
     const id = `e${state.nextEdgeSequence}`
     const edge: DagEdge = { id, source, target, kind: edgeKind }
@@ -235,12 +383,12 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     return { ok: true, edge }
   },
 
-  updateEdgeKind: (edgeId, kind) => {
+  updateEdgeKind: (edgeId) => {
     set((state) => {
       const edge = state.edges.get(edgeId)
       if (!edge) return state
       const edges = new Map(state.edges)
-      edges.set(edgeId, { ...edge, kind })
+      edges.set(edgeId, { ...edge, kind: 'strong' })
       return { edges }
     })
   },
@@ -269,8 +417,19 @@ export const useDagStore = create<DagStore>()((set, get) => ({
     set({ selectedVertexId: null, selectedEdgeId: null })
   },
 
-  setActiveEdgeKind: (kind) => {
-    set({ activeEdgeKind: kind })
+  setLayoutMode: (mode) => {
+    const state = get()
+    set({
+      layoutMode: mode,
+      dag: mode === 'round-grid' ? layoutVerticesByRounds(state.dag) : state.dag,
+    })
+  },
+
+  autoLayout: () => {
+    set((state) => ({
+      layoutMode: 'round-grid',
+      dag: layoutVerticesByRounds(state.dag),
+    }))
   },
 
   clearDag: () => {

@@ -3,6 +3,7 @@ import type { DagVertex } from '../domain/dag'
 
 export type DagVertexNodeData = {
   vertex: DagVertex
+  compact?: boolean
 } & Record<string, unknown>
 
 export type DagFlowNode = Node<DagVertexNodeData, 'dagVertex'>
@@ -16,23 +17,42 @@ const statusLabels = {
 } as const
 
 export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
-  const { vertex } = data
+  const { vertex, compact = false } = data
+
+  if (compact) {
+    return (
+      <div
+        className={`dag-node dag-node--compact ${selected ? 'dag-node--selected' : ''}`}
+        aria-label={`Vertex ${vertex.id}, source ${vertex.source}, round ${vertex.round}`}
+      >
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="dag-handle dag-handle--hidden"
+        />
+        <div className="dag-node__header">
+          <span className="dag-node__id">{vertex.id}</span>
+          <span className={`status-dot status-dot--${vertex.status}`} />
+        </div>
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="dag-handle dag-handle--hidden"
+        />
+      </div>
+    )
+  }
 
   return (
     <div
       className={`dag-node ${selected ? 'dag-node--selected' : ''}`}
       aria-label={`Vertex ${vertex.id}`}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="dag-handle dag-handle--target"
-      />
       <div className="dag-node__header">
         <span className="dag-node__id">{vertex.id}</span>
         <span className={`status-dot status-dot--${vertex.status}`} />
       </div>
-      <div className="dag-node__title">Process {vertex.source}</div>
+      <div className="dag-node__title">Source {vertex.source}</div>
       <div className="dag-node__metrics">
         <span>Round {vertex.round}</span>
         <span>Wave {vertex.wave}</span>
@@ -41,7 +61,7 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
       <Handle
         type="source"
         position={Position.Right}
-        className="dag-handle dag-handle--source"
+        className="dag-handle dag-handle--hidden"
       />
     </div>
   )

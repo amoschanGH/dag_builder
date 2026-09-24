@@ -3,24 +3,34 @@
 ## Toolchain and commands
 
 - Use npm and commit `package-lock.json`; do not introduce another package manager without a documented reason.
-- The current Vite/Vitest versions require Node `^22.12.0`, `^24.0.0`, or `>=26.0.0`.
+- Current Vite/Vitest versions require Node `^22.12.0`, `^24.0.0`, or `>=26.0.0`.
 - Run `npm run dev` for Vite on port 5173. There are no environment variables, services, or backend prerequisites.
-- Verify changes with `npm run lint`, `npm run typecheck`, `npm test`, then `npm run build`. `npm test -- src/store/useDagStore.test.ts` runs the focused store suite.
+- Verify changes with `npm run lint`, `npm run typecheck`, `npm test`, then `npm run build`.
+- Focused suites: `npm test -- src/simulation`, `npm test -- src/store/useDagStore.test.ts`, and `npm test -- src/store/useSimulationStore.test.ts`.
 
-## Architecture boundaries
+## State boundaries
 
-- `src/domain/dag.ts` is framework-independent: keep graph types, round indexing, `(source, round)` uniqueness, and cycle validation out of React components.
-- `src/store/useDagStore.ts` is the in-memory graph boundary. React Flow nodes/edges are projections, not the source of truth; do not persist raw React Flow state as the DAG model.
-- `src/components/DagCanvas.tsx` is the React Flow adapter. Keep protocol ordering and communication logic out of visualization code.
-- Local vertices and edges must remain `Map`-indexed; `README.md` explicitly rules out `Vertex[][]`.
-- Keep DAG-Rider out of the reusable engine. It is the first future protocol plugin, not hard-coded behavior.
+- `src/store/useDagStore.ts` is the editable Phase 1 graph. `src/store/useSimulationStore.ts` is the Phase 2 adapter around `Simulator`; simulation changes must never flow back into the editor store.
+- Loading/resetting simulation takes a detached snapshot of the current editor graph into process 0. Editor edits after initialization do not mutate a running simulation.
+- React Flow is only a projection. `src/domain/dag.ts` and `src/simulation/` must not import React, Zustand, React Flow, browser clocks, `setTimeout`, or `Math.random()`.
+- Local vertices, edges, buffers, pending edges, processes, and UI snapshots stay `Map`-indexed; `Vertex[][]` is explicitly ruled out.
+
+## Simulation invariants
+
+- `Simulator` is pull-based: `step()` handles one delivery, `runOneTick()` handles one timestamp up to a budget, and `runUntilIdle()` only drains network messages—it does not flush buffers.
+- Keep lifecycle state process-local. Received vertices enter a receiver's buffer as `deliverable`; network receipt is represented by events, not by mutating a shared vertex to `delivered`.
+- Queue order is `deliveryTime -> enqueueSequence -> id`; logical ticks are non-negative safe integers. Broadcast recipients and snapshot iterations are sorted for deterministic replay.
+- Broadcast strategies return drafts only. `Simulator` assigns IDs, validates, snapshots payloads, and owns the clock/queue.
+- Incident edges may wait in `pendingEdges` when endpoints arrive out of order. Structural cycle/duplicate checks may use `validateConnection`; keep the explicit user-required `2f+1` round gate in `src/simulation/roundPolicy.ts`, not in graph/UI components, and do not add other DAG-Rider thresholds, leader rules, commit logic, or ordering here.
+- Buffer insertion is explicit and structural only. Preserve first-delivery-wins behavior and reject conflicting IDs or `(source, round)` slots without overwriting state.
+- Process IDs are stored zero-based internally but displayed one-based (`P1`, `P2`, …); a local block created by process `p` uses source `p+1`. Do not mix the two representations in UI or protocol logic.
+- Round advancement is gated by `2f+1` distinct source vertices in the latest local-DAG round (`faultTolerance`/`f` is configurable); creating or flushing round `r+1` must be rejected until round `r` meets quorum. `ProcessView.statusRound` is authoritative, and a block may enter the local DAG only when `block.round === statusRound`; seed snapshots are admitted round-by-round and truncate at the first gate.
+- When a local block is created, snapshot every block currently in that process's local DAG at round `r-1` as its strong predecessor set. Keep those edges pending until insertion; do not recompute them when the local DAG changes later. Imported strong edges are normalized from the same rule.
 
 ## Frontend quirks
 
-- Tailwind v4 is configured through `@tailwindcss/vite`. In `src/index.css`, keep `@xyflow/react/dist/style.css` after the Tailwind import or React Flow styling can be overridden.
-- The app is client-only and non-persistent; refresh restores the example graph. Do not imply saved state or multi-process simulation exists yet.
-- The roadmap order in `README.md` is intentional: finish visualization, then network simulation, graph analysis, and only then DAG-Rider layers.
-
-## Testing
-
-- Vitest currently covers the Zustand graph store and domain invariants in `src/**/*.test.ts`; there is no browser/E2E harness yet.
+- Tailwind v4 uses `@tailwindcss/vite`. Keep `@xyflow/react/dist/style.css` after the Tailwind import in `src/index.css` or React Flow styling can be overridden.
+- State is in memory only; refresh discards the editor/simulation. There is no real-time scheduler, persistence, partition model, or E2E harness yet.
+- The editor defaults to the round/source grid from `src/domain/dag.ts`; dragging a node switches it to `freeform`. Use **Round grid** or **Re-grid** to restore deterministic columns/rows.
+- In the grid, older rounds are left and newer rounds are right; connect a newer vertex's right source handle to an older vertex's left target handle to match the reference DAG. Source labels are 1-based in the editor.
+- The roadmap order remains intentional: visualization, network simulation, graph analysis, then DAG-Rider layers.
