@@ -1,6 +1,10 @@
 # DAG Research Workbench
 *A Visual Interactive Framework for Studying DAG-Based Blockchain Consensus Protocols*
 
+## Demo
+
+[Open the live DAG Research Workbench demo](https://amoschangh.github.io/dag_builder/)
+
 ## Current implementation
 
 Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
@@ -25,7 +29,7 @@ Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
 - Inspect per-process DAG/buffer counts, pending out-of-order edges, the priority queue, and the event log.
 - Gate round advancement on `2f+1` vertices in the latest local-DAG round; configure `f` in the simulation controls.
 - Capture a new block's strong edges from the creating process's local DAG at the preceding round when the block is created; later DAG changes do not rewrite that snapshot.
-- Require `block.round === ProcessView.statusRound` before adding a received block to a process's local DAG; the slot `(source, round)` must also be empty.
+- Require `block.round === ProcessView.statusRound` before adding a received block to a process's local DAG; multiple blocks may occupy the same `(source, round)` slot to model equivocation, while quorum counts distinct sources.
 - Preserve deterministic ordering by delivery tick, enqueue sequence, and message ID.
 
 The simulation is pull-based: it has no wall-clock timer, persistence, backend, network partition, Byzantine behavior, or DAG-Rider ordering yet. Refreshing the page restores the editor sample and discards simulation state.
