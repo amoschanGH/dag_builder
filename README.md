@@ -1,6 +1,53 @@
 # DAG Research Workbench
 *A Visual Interactive Framework for Studying DAG-Based Blockchain Consensus Protocols*
 
+## Current implementation
+
+Phase 1 is a working client-side DAG editor:
+
+- Place, drag, select, inspect, and delete vertices.
+- Create directed strong or weak edges by dragging between vertex handles.
+- Prevent self-loops, duplicate directed edges, cycles, and duplicate `(source, round)` slots.
+- Inspect and edit vertex metadata or change an edge's kind.
+- Load a sample DAG or clear the current local view.
+
+State is currently in memory only. Refreshing the page restores the sample graph; there is no backend, persistence, or environment configuration yet.
+
+## Getting started
+
+Use Node.js `^22.12.0`, `^24.0.0`, or `>=26.0.0` (the range required by the current Vite/Vitest toolchain).
+
+```bash
+npm install
+npm run dev
+```
+
+Vite serves the app at `http://localhost:5173/` by default.
+
+## Verification
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Run the focused graph-store suite with:
+
+```bash
+npm test -- src/store/useDagStore.test.ts
+```
+
+## Source layout
+
+- `src/domain/dag.ts` contains framework-independent DAG types and invariants.
+- `src/store/useDagStore.ts` owns the in-memory graph and editor actions.
+- `src/components/` adapts graph state to React Flow and provides the inspector.
+- `src/index.css` loads Tailwind before React Flow styles, as required by React Flow.
+
+---
+
 ## Project Vision
 
 The goal of this project is not merely to implement DAG-Rider, but to build a reusable **Distributed DAG Research Workbench** that can visualize, simulate, and analyze DAG-based consensus protocols.

@@ -1,18 +1,26 @@
 # AGENTS.md
 
-## Current state
+## Toolchain and commands
 
-- This repository is documentation-only: there is no source, manifest, lockfile, CI, or build/lint/test configuration, and therefore no runnable project command yet.
-- `README.md` proposes React, TypeScript, Vite, Tailwind, React Flow, and Zustand; they are architectural choices, not currently installed or configured.
+- Use npm and commit `package-lock.json`; do not introduce another package manager without a documented reason.
+- The current Vite/Vitest versions require Node `^22.12.0`, `^24.0.0`, or `>=26.0.0`.
+- Run `npm run dev` for Vite on port 5173. There are no environment variables, services, or backend prerequisites.
+- Verify changes with `npm run lint`, `npm run typecheck`, `npm test`, then `npm run build`. `npm test -- src/store/useDagStore.test.ts` runs the focused store suite.
 
-## Architecture constraints
+## Architecture boundaries
 
-- Build a reusable DAG-consensus research workbench. DAG-Rider is the first protocol plugin, not logic that should be hard-coded into the engine or UI.
-- Keep communication/simulation, protocol ordering, and visualization independent. Visualization must not contain protocol logic, and the DAG engine must not assume a specific broadcast strategy.
-- Keep broadcast and ordering behind strategy/plugin interfaces. The event queue is ordered by delivery time to support deterministic simulation.
-- Store local vertices as `Map<VertexId, Vertex>` for lookup and graph traversal; `README.md` explicitly rules out `Vertex[][]`.
-- Treat the phased roadmap in `README.md` as the intended implementation order: visualization, network simulation, graph analysis, then DAG-Rider layers.
+- `src/domain/dag.ts` is framework-independent: keep graph types, round indexing, `(source, round)` uniqueness, and cycle validation out of React components.
+- `src/store/useDagStore.ts` is the in-memory graph boundary. React Flow nodes/edges are projections, not the source of truth; do not persist raw React Flow state as the DAG model.
+- `src/components/DagCanvas.tsx` is the React Flow adapter. Keep protocol ordering and communication logic out of visualization code.
+- Local vertices and edges must remain `Map`-indexed; `README.md` explicitly rules out `Vertex[][]`.
+- Keep DAG-Rider out of the reusable engine. It is the first future protocol plugin, not hard-coded behavior.
 
-## Verification
+## Frontend quirks
 
-- No test runner or focused-test command exists yet. Do not invent one; when tooling is added, record the verified commands here and in the project docs.
+- Tailwind v4 is configured through `@tailwindcss/vite`. In `src/index.css`, keep `@xyflow/react/dist/style.css` after the Tailwind import or React Flow styling can be overridden.
+- The app is client-only and non-persistent; refresh restores the example graph. Do not imply saved state or multi-process simulation exists yet.
+- The roadmap order in `README.md` is intentional: finish visualization, then network simulation, graph analysis, and only then DAG-Rider layers.
+
+## Testing
+
+- Vitest currently covers the Zustand graph store and domain invariants in `src/**/*.test.ts`; there is no browser/E2E harness yet.
