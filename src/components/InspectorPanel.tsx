@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { VERTEX_STATUSES, type VertexStatus } from '../domain/dag'
+import { getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore, type VertexUpdateResult } from '../store/useDagStore'
+import { StrongReferenceDetails } from './StrongReferenceDetails'
 
 function statusLabel(status: VertexStatus) {
   return status
@@ -35,6 +37,11 @@ export function InspectorPanel() {
     ? dag.vertices.get(selectedVertexId)
     : undefined
   const selectedEdge = selectedEdgeId ? edges.get(selectedEdgeId) : undefined
+  const referenceDetails = getStrongReferenceDetails(
+    selectedEdge,
+    dag.vertices,
+    edges.values(),
+  )
   const error =
     selectedVertex && updateError?.vertexId === selectedVertex.id
       ? updateError.message
@@ -158,17 +165,11 @@ export function InspectorPanel() {
 
       {selectedEdge && (
         <div className="inspector-content">
-          <p className="inspector-intro">Strong edges are generated when a block is created and point to its previous-round predecessors.</p>
-          <div className="edge-route">
-            <span>{selectedEdge.source}</span>
-            <span>→</span>
-            <span>{selectedEdge.target}</span>
-          </div>
-          <div className="strong-edge-readonly">
-            <span className="inspector-edge-kind__line" />
-            <strong>Strong predecessor edge</strong>
-            <small>new block → round {selectedEdge.target}'s predecessor</small>
-          </div>
+          {referenceDetails ? (
+            <StrongReferenceDetails details={referenceDetails} />
+          ) : (
+            <p className="inspector-intro">This edge is not a valid strong reference.</p>
+          )}
           <button type="button" className="danger-button" onClick={() => removeEdge(selectedEdge.id)}>
             Delete edge
           </button>

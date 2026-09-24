@@ -28,6 +28,7 @@ export function SimulationCanvas() {
   const activeProcessId = useSimulationStore((state) => state.activeProcessId)
   const selectedVertexId = useSimulationStore((state) => state.selectedVertexId)
   const selectVertex = useSimulationStore((state) => state.selectVertex)
+  const selectEdge = useSimulationStore((state) => state.selectEdge)
   const process = snapshot.processes.get(activeProcessId)
 
   const nodes = useMemo<DagFlowNode[]>(
@@ -54,18 +55,20 @@ export function SimulationCanvas() {
         ? Array.from(process.edges.values())
             .filter((edge) => edge.kind === 'strong')
             .map((edge) => {
-            const color = '#8ab4ff'
+            const focused = selectedVertexId !== null && edge.source === selectedVertexId
+            const color = focused ? '#fbbf24' : '#8ab4ff'
             return {
               id: edge.id,
               source: edge.source,
               target: edge.target,
               type: 'smoothstep',
               data: { edge },
-              selected: edge.id === selectedVertexId,
+              selected: false,
               animated: false,
               style: {
                 stroke: color,
-                strokeWidth: 2,
+                strokeWidth: focused ? 3.5 : 2,
+                filter: focused ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))' : undefined,
               },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -86,12 +89,13 @@ export function SimulationCanvas() {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => selectVertex(node.id)}
+        onEdgeClick={(_, edge) => selectEdge(edge.id)}
         onPaneClick={() => selectVertex(null)}
         nodesDraggable={false}
         nodesConnectable={false}
         nodesFocusable
         elementsSelectable
-        edgesFocusable={false}
+        edgesFocusable
         fitView
         fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
         minZoom={0.25}

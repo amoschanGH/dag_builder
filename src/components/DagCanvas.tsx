@@ -39,7 +39,6 @@ function DagFlow() {
   const vertices = useDagStore((state) => state.dag.vertices)
   const edges = useDagStore((state) => state.edges)
   const selectedVertexId = useDagStore((state) => state.selectedVertexId)
-  const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
   const layoutMode = useDagStore((state) => state.layoutMode)
   const moveVertex = useDagStore((state) => state.updateVertex)
   const removeVertex = useDagStore((state) => state.removeVertex)
@@ -80,18 +79,20 @@ function DagFlow() {
       Array.from(edges.values())
         .filter((edge) => edge.kind === 'strong')
         .map((edge) => {
-        const color = '#8ab4ff'
+        const focused = selectedVertexId !== null && edge.source === selectedVertexId
+        const color = focused ? '#fbbf24' : '#8ab4ff'
         return {
           id: edge.id,
           source: edge.source,
           target: edge.target,
           type: 'smoothstep',
           data: { edge },
-          selected: edge.id === selectedEdgeId,
+          selected: false,
           animated: false,
           style: {
             stroke: color,
-            strokeWidth: edge.id === selectedEdgeId ? 3 : 1.7,
+            strokeWidth: focused ? 3.5 : 1.7,
+            filter: focused ? 'drop-shadow(0 0 4px rgb(251 191 36 / 85%))' : undefined,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -102,7 +103,7 @@ function DagFlow() {
           ariaLabel: `${edge.kind} edge from ${edge.source} to ${edge.target}`,
         }
       }),
-    [edges, selectedEdgeId],
+    [edges, selectedVertexId],
   )
 
   const handleNodesChange: OnNodesChange<DagFlowNode> = useCallback(

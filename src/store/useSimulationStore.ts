@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getRoundGridBounds, roundGridPosition, type VertexId } from '../domain/dag'
+import { getRoundGridBounds, roundGridPosition, type EdgeId, type VertexId } from '../domain/dag'
 import { SimpleDelayedBroadcast } from '../simulation/broadcast'
 import { DEFAULT_FAULT_TOLERANCE, MAX_FAULT_TOLERANCE } from '../simulation/roundPolicy'
 import {
@@ -25,6 +25,7 @@ interface SimulationActions {
   configure: (processCount: number, delay: number, faultTolerance?: number) => void
   setActiveProcess: (processId: ProcessId) => void
   selectVertex: (vertexId: VertexId | null) => void
+  selectEdge: (edgeId: EdgeId | null) => void
   createBufferedVertex: () => void
   flushVertex: (vertexId: VertexId) => void
   flushSelectedVertex: () => void
@@ -41,6 +42,7 @@ export interface SimulationStore {
   snapshot: SimulationSnapshot
   activeProcessId: ProcessId
   selectedVertexId: VertexId | null
+  selectedEdgeId: EdgeId | null
   processCount: number
   delay: number
   faultTolerance: number
@@ -151,6 +153,7 @@ export const useSimulationStore = create<SimulationStore & SimulationActions>()(
     snapshot: createEmptySimulationSnapshot(),
     activeProcessId: 0,
     selectedVertexId: null,
+    selectedEdgeId: null,
     processCount: 4,
     delay: 3,
     faultTolerance: DEFAULT_FAULT_TOLERANCE,
@@ -175,6 +178,7 @@ export const useSimulationStore = create<SimulationStore & SimulationActions>()(
         snapshot: simulator.snapshot(),
         activeProcessId: 0,
         selectedVertexId: null,
+        selectedEdgeId: null,
         processCount: normalizedProcesses,
         delay: normalizedDelay,
         faultTolerance: normalizedFaultTolerance,
@@ -197,11 +201,19 @@ export const useSimulationStore = create<SimulationStore & SimulationActions>()(
     setActiveProcess: (processId) => {
       const snapshot = get().snapshot
       if (!snapshot.processes.has(processId)) return
-      set({ activeProcessId: processId, selectedVertexId: null })
+      set({
+        activeProcessId: processId,
+        selectedVertexId: null,
+        selectedEdgeId: null,
+      })
     },
 
     selectVertex: (vertexId) => {
-      set({ selectedVertexId: vertexId })
+      set({ selectedVertexId: vertexId, selectedEdgeId: null })
+    },
+
+    selectEdge: (edgeId) => {
+      set({ selectedEdgeId: edgeId, selectedVertexId: null })
     },
 
     createBufferedVertex: () => {
@@ -229,6 +241,7 @@ export const useSimulationStore = create<SimulationStore & SimulationActions>()(
       set({
         snapshot: simulator.snapshot(),
         selectedVertexId: result.ok ? result.value : state.selectedVertexId,
+        selectedEdgeId: null,
         nextLocalVertexSequence: result.ok ? sequence + 1 : sequence,
         notice,
       })

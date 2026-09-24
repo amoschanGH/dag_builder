@@ -33,11 +33,17 @@ export interface DagVertex {
   timestamp: number
 }
 
+export interface StrongReferenceMetadata {
+  capturedAt: number
+  originProcess: number
+}
+
 export interface DagEdge {
   id: EdgeId
   source: VertexId
   target: VertexId
   kind: EdgeKind
+  reference?: StrongReferenceMetadata
 }
 
 export interface LocalDag {

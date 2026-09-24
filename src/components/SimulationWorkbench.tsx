@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import type { EdgeKind, VertexStatus } from '../domain/dag'
+import { getStrongReferenceDetails } from '../domain/strongReferences'
 import { summarizeRound } from '../simulation/roundPolicy'
 import type { ProcessView } from '../simulation/types'
 import { useSimulationStore } from '../store/useSimulationStore'
 import { SimulationCanvas } from './SimulationCanvas'
+import { StrongReferenceDetails } from './StrongReferenceDetails'
 
 function processLabel(processId: number) {
   return processId + 1
@@ -54,6 +56,7 @@ export function SimulationWorkbench() {
   const snapshot = useSimulationStore((state) => state.snapshot)
   const activeProcessId = useSimulationStore((state) => state.activeProcessId)
   const selectedVertexId = useSimulationStore((state) => state.selectedVertexId)
+  const selectedEdgeId = useSimulationStore((state) => state.selectedEdgeId)
   const processCount = useSimulationStore((state) => state.processCount)
   const delay = useSimulationStore((state) => state.delay)
   const faultTolerance = useSimulationStore((state) => state.faultTolerance)
@@ -81,6 +84,12 @@ export function SimulationWorkbench() {
     ? process?.buffer.get(selectedVertexId)
     : undefined
   const selectedVertex = selectedDagVertex ?? selectedBuffered?.vertex
+  const selectedEdge = selectedEdgeId ? process?.edges.get(selectedEdgeId) : undefined
+  const referenceDetails = getStrongReferenceDetails(
+    selectedEdge,
+    process?.dag.vertices ?? new Map(),
+    process?.edges.values() ?? [],
+  )
   const canBroadcast = selectedDagVertex !== undefined
   const canFlushSelected = selectedBuffered !== undefined
   const roundSummary = roundSummaryForProcess(process, faultTolerance)
@@ -288,7 +297,7 @@ export function SimulationWorkbench() {
             <div className="simulation-section-heading">
               <div>
                 <p className="eyebrow">Selection</p>
-                <h2>{selectedVertex ? selectedVertex.id : 'No vertex'}</h2>
+                <h2>{selectedVertex ? selectedVertex.id : selectedEdge ? `Edge ${selectedEdge.id}` : 'No selection'}</h2>
               </div>
               {selectedVertex && (
                 <span className={`status-chip status-chip--${selectedVertex.status}`}>
@@ -330,9 +339,13 @@ export function SimulationWorkbench() {
                   </button>
                 </div>
               </>
+            ) : selectedEdge && referenceDetails ? (
+              <StrongReferenceDetails details={referenceDetails} />
+            ) : selectedEdge ? (
+              <p className="simulation-empty-copy">This edge is not a valid strong reference.</p>
             ) : (
               <p className="simulation-empty-copy">
-                Select a DAG vertex or buffer row to inspect it and choose an action.
+                Select a DAG vertex, buffer row, or strong edge to inspect it.
               </p>
             )}
           </section>

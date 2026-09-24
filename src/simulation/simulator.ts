@@ -750,7 +750,14 @@ export class Simulator {
 
       if (existing) {
         if (existing.kind === 'strong') continue
-        const upgraded = { ...existing, kind: 'strong' as const }
+        const upgraded = {
+          ...existing,
+          kind: 'strong' as const,
+          reference: existing.reference ?? {
+            capturedAt: this.currentTick,
+            originProcess: Math.max(0, vertex.source - 1),
+          },
+        }
         if (edges.has(existing.id)) edges.set(existing.id, upgraded)
         else pendingEdges.set(existing.id, upgraded)
         continue
@@ -761,6 +768,10 @@ export class Simulator {
         source: vertex.id,
         target: predecessor.id,
         kind: 'strong',
+        reference: {
+          capturedAt: this.currentTick,
+          originProcess: Math.max(0, vertex.source - 1),
+        },
       }
       if (dag.vertices.has(vertex.id)) edges.set(edge.id, edge)
       else pendingEdges.set(edge.id, edge)
@@ -1007,7 +1018,11 @@ export class Simulator {
       return { ok: true, value: undefined }
     }
 
-    const upgraded = { ...existing, kind: 'strong' as const }
+    const upgraded = {
+      ...existing,
+      kind: 'strong' as const,
+      reference: incoming.reference ?? existing.reference,
+    }
     if (edges.has(existing.id)) edges.set(existing.id, upgraded)
     else pendingEdges.set(existing.id, upgraded)
     return { ok: true, value: undefined }

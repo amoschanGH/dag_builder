@@ -11,7 +11,8 @@ Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
 - Create blocks; strong predecessor edges are generated automatically to the previous round.
 - Prevent self-loops, duplicate directed edges, cycles, and duplicate `(source, round)` slots.
 - Load a sample DAG or clear the editor graph.
-- Display the default round/source grid: rounds run left-to-right, sources run top-to-bottom, and strong edges point from a new block toward its previous-round predecessors; switch to Freeform for manual placement.
+- Select a strong edge to inspect its source/target blocks, round relation, capture tick, origin process, and recursively traced causal history.
+- Display the default round/source grid: rounds run left-to-right, sources run top-to-bottom, outgoing/source handles are on the left, incoming/target handles are on the right, and strong edges point from a new block toward its previous-round predecessors; switch to Freeform for manual placement.
 - Weak edges are intentionally deferred while the strong-edge/local-round model is established.
 
 **Network simulation**

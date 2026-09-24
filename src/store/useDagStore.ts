@@ -114,7 +114,16 @@ function addStrongPredecessorEdges(
       }),
     )
     if (existing) {
-      if (existing.kind !== 'strong') nextEdges.set(existing.id, { ...existing, kind: 'strong' })
+      if (existing.kind !== 'strong') {
+        nextEdges.set(existing.id, {
+          ...existing,
+          kind: 'strong',
+          reference: existing.reference ?? {
+            capturedAt: 0,
+            originProcess: Math.max(0, vertex.source - 1),
+          },
+        })
+      }
       continue
     }
 
@@ -124,6 +133,10 @@ function addStrongPredecessorEdges(
       source: vertex.id,
       target: predecessor.id,
       kind: 'strong',
+      reference: {
+        capturedAt: 0,
+        originProcess: Math.max(0, vertex.source - 1),
+      },
     })
     sequence += 1
   }

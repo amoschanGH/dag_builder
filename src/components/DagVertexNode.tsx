@@ -27,7 +27,7 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
       >
         <Handle
           type="target"
-          position={Position.Left}
+          position={Position.Right}
           className="dag-handle dag-handle--hidden"
         />
         <div className="dag-node__header">
@@ -36,7 +36,7 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
         </div>
         <Handle
           type="source"
-          position={Position.Right}
+          position={Position.Left}
           className="dag-handle dag-handle--hidden"
         />
       </div>
@@ -48,6 +48,11 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
       className={`dag-node ${selected ? 'dag-node--selected' : ''}`}
       aria-label={`Vertex ${vertex.id}`}
     >
+      <Handle
+        type="target"
+        position={Position.Right}
+        className="dag-handle dag-handle--hidden"
+      />
       <div className="dag-node__header">
         <span className="dag-node__id">{vertex.id}</span>
         <span className={`status-dot status-dot--${vertex.status}`} />
@@ -60,7 +65,7 @@ export function DagVertexNode({ data, selected }: NodeProps<DagFlowNode>) {
       <div className="dag-node__status">{statusLabels[vertex.status]}</div>
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Left}
         className="dag-handle dag-handle--hidden"
       />
     </div>

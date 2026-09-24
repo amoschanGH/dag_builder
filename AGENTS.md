@@ -14,6 +14,7 @@
 - Loading/resetting simulation takes a detached snapshot of the current editor graph into process 0. Editor edits after initialization do not mutate a running simulation.
 - React Flow is only a projection. `src/domain/dag.ts` and `src/simulation/` must not import React, Zustand, React Flow, browser clocks, `setTimeout`, or `Math.random()`.
 - Local vertices, edges, buffers, pending edges, processes, and UI snapshots stay `Map`-indexed; `Vertex[][]` is explicitly ruled out.
+- `src/domain/strongReferences.ts` derives strong-reference metadata and deterministic ancestor history for the inspector; keep it framework-independent.
 
 ## Simulation invariants
 
@@ -32,5 +33,5 @@
 - Tailwind v4 uses `@tailwindcss/vite`. Keep `@xyflow/react/dist/style.css` after the Tailwind import in `src/index.css` or React Flow styling can be overridden.
 - State is in memory only; refresh discards the editor/simulation. There is no real-time scheduler, persistence, partition model, or E2E harness yet.
 - The editor defaults to the round/source grid from `src/domain/dag.ts`; dragging a node switches it to `freeform`. Use **Round grid** or **Re-grid** to restore deterministic columns/rows.
-- In the grid, older rounds are left and newer rounds are right; connect a newer vertex's right source handle to an older vertex's left target handle to match the reference DAG. Source labels are 1-based in the editor.
+- In the grid, older rounds are left and newer rounds are right; the outgoing/source handle is on the node's left and the incoming/target handle is on its right. Strong edges are generated from a new block to the previous-round blocks. Source labels are 1-based in the editor.
 - The roadmap order remains intentional: visualization, network simulation, graph analysis, then DAG-Rider layers.
