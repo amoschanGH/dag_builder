@@ -3,7 +3,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type MouseEvent as ReactMouseEvent,
 } from 'react'
 import {
   Background,
@@ -26,6 +25,7 @@ import { getStrongReferenceDetails } from '../domain/strongReferences'
 import { useDagStore } from '../store/useDagStore'
 import { DagVertexNode, type DagFlowNode } from './DagVertexNode'
 import { RoundGrid } from './RoundGrid'
+import { VertexComposer } from './VertexComposer'
 
 type DagFlowEdge = Edge<
   { edge: DagEdge } & Record<string, unknown>,
@@ -45,16 +45,14 @@ function DagFlow() {
   const moveVertex = useDagStore((state) => state.updateVertex)
   const removeVertex = useDagStore((state) => state.removeVertex)
   const removeEdge = useDagStore((state) => state.removeEdge)
-  const addVertex = useDagStore((state) => state.addVertex)
   const selectVertex = useDagStore((state) => state.selectVertex)
   const selectEdge = useDagStore((state) => state.selectEdge)
   const clearSelection = useDagStore((state) => state.clearSelection)
   const setLayoutMode = useDagStore((state) => state.setLayoutMode)
   const autoLayout = useDagStore((state) => state.autoLayout)
-  const { fitView, screenToFlowPosition } = useReactFlow<DagFlowNode, DagFlowEdge>()
+  const { fitView } = useReactFlow<DagFlowNode, DagFlowEdge>()
 
-  const [placementActive, setPlacementActive] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [composerOpen, setComposerOpen] = useState(false)
 
   useEffect(() => {
     if (vertices.size > 0) {
@@ -173,24 +171,6 @@ function DagFlow() {
     [removeEdge, selectEdge],
   )
 
-  const handlePaneClick = useCallback(
-    (event: ReactMouseEvent<Element>) => {
-      if (!placementActive) {
-        clearSelection()
-        return
-      }
-
-      const position = screenToFlowPosition(
-        { x: event.clientX, y: event.clientY },
-        { snapToGrid: true, snapGrid: [20, 20] },
-      )
-      addVertex(position)
-      setPlacementActive(false)
-      setNotice(null)
-    },
-    [addVertex, clearSelection, placementActive, screenToFlowPosition],
-  )
-
   return (
     <ReactFlow<DagFlowNode, DagFlowEdge>
       nodes={nodes}
@@ -200,7 +180,7 @@ function DagFlow() {
       onEdgesChange={handleEdgesChange}
       onNodeClick={(_, node) => selectVertex(node.id)}
       onEdgeClick={(_, edge) => selectEdge(edge.id)}
-      onPaneClick={handlePaneClick}
+      onPaneClick={clearSelection}
       nodesConnectable={false}
       colorMode="dark"
       defaultEdgeOptions={{ type: 'smoothstep' }}
@@ -229,18 +209,20 @@ function DagFlow() {
       />
       <Controls showInteractive={false} />
 
+      {composerOpen && (
+        <Panel position="top-right" className="vertex-composer-panel">
+          <VertexComposer onClose={() => setComposerOpen(false)} />
+        </Panel>
+      )}
+
       <Panel position="top-left" className="canvas-toolbar">
         <button
           type="button"
-          className={placementActive ? 'tool-button tool-button--active' : 'tool-button'}
-          onClick={() => setPlacementActive((active) => !active)}
+          className={composerOpen ? 'tool-button tool-button--active' : 'tool-button'}
+          onClick={() => setComposerOpen(true)}
         >
           <span className="tool-button__icon">+</span>
-          {placementActive
-            ? 'Click canvas…'
-            : layoutMode === 'round-grid'
-              ? 'Add next vertex'
-              : 'Place vertex'}
+          {composerOpen ? 'Composing block…' : 'New block'}
         </button>
         <div className="tool-divider" />
         <span className="tool-hint">Strong edges: r → r−1 (automatic)</span>
@@ -267,20 +249,9 @@ function DagFlow() {
         </button>
       </Panel>
 
-      {notice && (
-        <Panel position="bottom-center" className="canvas-notice" role="status">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message">
-            ×
-          </button>
-        </Panel>
-      )}
-
       {vertices.size === 0 && (
         <Panel position="bottom-center" className="empty-canvas-hint">
-          {layoutMode === 'round-grid'
-            ? 'Choose Add next vertex to extend the round/source grid.'
-            : 'Choose Place vertex, then click anywhere on the canvas.'}
+          Choose <strong>New block</strong> to compose the first vertex and its strong references.
         </Panel>
       )}
     </ReactFlow>

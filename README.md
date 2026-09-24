@@ -9,6 +9,7 @@ Phase 2 adds deterministic network simulation to the Phase 1 DAG editor.
 
 - Place, drag, select, inspect, and delete vertices.
 - Create blocks; strong predecessor edges are generated automatically to the previous round.
+- Use the New block composer to choose source/round and select or edit strong references instead of being forced into the latest round.
 - Prevent self-loops, duplicate directed edges, cycles, and duplicate `(source, round)` slots.
 - Load a sample DAG or clear the editor graph.
 - Select a strong edge to inspect its source/target blocks, round relation, capture tick, origin process, and recursively traced causal history.

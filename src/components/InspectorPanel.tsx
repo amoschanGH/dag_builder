@@ -26,6 +26,7 @@ export function InspectorPanel() {
   const selectedVertexId = useDagStore((state) => state.selectedVertexId)
   const selectedEdgeId = useDagStore((state) => state.selectedEdgeId)
   const updateVertex = useDagStore((state) => state.updateVertex)
+  const updateVertexReferences = useDagStore((state) => state.updateVertexReferences)
   const removeVertex = useDagStore((state) => state.removeVertex)
   const removeEdge = useDagStore((state) => state.removeEdge)
   const [updateError, setUpdateError] = useState<{
@@ -46,6 +47,31 @@ export function InspectorPanel() {
     selectedVertex && updateError?.vertexId === selectedVertex.id
       ? updateError.message
       : null
+  const previousRoundVertices = selectedVertex
+    ? Array.from(dag.vertices.values())
+        .filter((vertex) => vertex.round === selectedVertex.round - 1)
+        .sort((left, right) => left.source - right.source || left.id.localeCompare(right.id))
+    : []
+  const selectedReferenceIds = new Set(
+    selectedVertex
+      ? Array.from(edges.values())
+          .filter((edge) => edge.source === selectedVertex.id && edge.kind === 'strong')
+          .map((edge) => edge.target)
+      : [],
+  )
+
+  const toggleReference = (referenceId: string) => {
+    if (!selectedVertex) return
+    const next = new Set(selectedReferenceIds)
+    if (next.has(referenceId)) next.delete(referenceId)
+    else next.add(referenceId)
+    const updated = updateVertexReferences(selectedVertex.id, Array.from(next))
+    setUpdateError(
+      updated
+        ? null
+        : { vertexId: selectedVertex.id, message: 'Strong references must be in the previous round.' },
+    )
+  }
 
   const applyUpdate = (patch: Parameters<typeof updateVertex>[1]) => {
     if (!selectedVertex) return
@@ -155,6 +181,31 @@ export function InspectorPanel() {
               <span>Incoming</span>
               <strong>{Array.from(edges.values()).filter((edge) => edge.target === selectedVertex.id).length}</strong>
             </div>
+          </div>
+
+          <div className="reference-editor">
+            <div className="reference-editor__heading">
+              <strong>Strong references</strong>
+              <span>{selectedReferenceIds.size} / {previousRoundVertices.length}</span>
+            </div>
+            <p>Edit which previous-round blocks this vertex references.</p>
+            {previousRoundVertices.length === 0 ? (
+              <small>No vertices exist in round {selectedVertex.round - 1}.</small>
+            ) : (
+              <div className="reference-editor__options">
+                {previousRoundVertices.map((candidate) => (
+                  <label key={candidate.id} className="reference-option">
+                    <input
+                      type="checkbox"
+                      checked={selectedReferenceIds.has(candidate.id)}
+                      onChange={() => toggleReference(candidate.id)}
+                    />
+                    <span>{candidate.id}</span>
+                    <small>source {candidate.source} · round {candidate.round}</small>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <button type="button" className="danger-button" onClick={() => removeVertex(selectedVertex.id)}>

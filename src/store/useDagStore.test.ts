@@ -34,6 +34,45 @@ describe('useDagStore', () => {
     expect(dag.rounds.get(1)).toEqual(new Set([vertexId]))
   })
 
+  it('allows custom strong references when creating a block', () => {
+    const first = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 1,
+      referenceIds: [],
+    })
+    const second = useDagStore.getState().addVertexWithOptions({
+      source: 2,
+      round: 1,
+      referenceIds: [],
+    })
+    const third = useDagStore.getState().addVertexWithOptions({
+      source: 1,
+      round: 2,
+      referenceIds: first.ok ? [first.id] : [],
+    })
+
+    expect(first.ok && second.ok && third.ok).toBe(true)
+    if (!first.ok || !second.ok || !third.ok) return
+    expect(
+      Array.from(useDagStore.getState().edges.values()).filter(
+        (edge) => edge.source === third.id,
+      ),
+    ).toHaveLength(1)
+    expect(
+      useDagStore.getState().edges.get(`auto-${third.id}-${first.id}`),
+    ).toBeDefined()
+
+    expect(
+      useDagStore.getState().updateVertexReferences(third.id, [second.id]),
+    ).toBe(true)
+    expect(
+      useDagStore.getState().edges.get(`auto-${third.id}-${first.id}`),
+    ).toBeUndefined()
+    expect(
+      useDagStore.getState().edges.get(`auto-${third.id}-${second.id}`),
+    ).toBeDefined()
+  })
+
   it('automatically builds strong edges to the previous round', () => {
     useDagStore.getState().addVertex()
     useDagStore.getState().addVertex()

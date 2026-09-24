@@ -28,6 +28,17 @@ export type EdgeAddResult =
   | { ok: true; edge: DagEdge }
   | { ok: false; reason: ConnectionRejection }
 
+export interface CreateVertexOptions {
+  position?: Point
+  source?: number
+  round?: number
+  referenceIds?: readonly VertexId[]
+}
+
+export type CreateVertexResult =
+  | { ok: true; id: VertexId }
+  | { ok: false; reason: 'duplicate-slot' | 'invalid-reference' | 'invalid-value' }
+
 export type LayoutMode = 'round-grid' | 'freeform'
 
 interface GraphState {
@@ -42,6 +53,11 @@ interface GraphState {
 
 interface DagActions {
   addVertex: (position?: Point) => VertexId
+  addVertexWithOptions: (options?: CreateVertexOptions) => CreateVertexResult
+  updateVertexReferences: (
+    vertexId: VertexId,
+    referenceIds: readonly VertexId[],
+  ) => boolean
   updateVertex: (
     vertexId: VertexId,
     patch: VertexPatch,
@@ -97,10 +113,15 @@ function addStrongPredecessorEdges(
   dag: LocalDag,
   edges: Map<EdgeId, DagEdge>,
   nextEdgeSequence: number,
+  allowedPredecessorIds?: ReadonlySet<VertexId>,
 ) {
   const nextEdges = new Map(edges)
   const predecessors = Array.from(dag.vertices.values())
-    .filter((candidate) => candidate.round === vertex.round - 1)
+    .filter(
+      (candidate) =>
+        candidate.round === vertex.round - 1 &&
+        (!allowedPredecessorIds || allowedPredecessorIds.has(candidate.id)),
+    )
     .sort((left, right) => left.source - right.source || left.id.localeCompare(right.id))
   let sequence = nextEdgeSequence
 
@@ -252,6 +273,14 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
+function previousRoundIds(dag: LocalDag, round: number) {
+  return new Set(
+    Array.from(dag.vertices.values())
+      .filter((vertex) => vertex.round === round - 1)
+      .map((vertex) => vertex.id),
+  )
+}
+
 function isPositionOnlyPatch(patch: VertexPatch) {
   return (
     patch.position !== undefined &&
@@ -267,20 +296,39 @@ export const useDagStore = create<DagStore>()((set, get) => ({
   ...createExampleGraph(),
 
   addVertex: (position) => {
+    const result = get().addVertexWithOptions({ position })
+    return result.ok ? result.id : `v${get().nextVertexSequence}`
+  },
+
+  addVertexWithOptions: (options = {}) => {
     const state = get()
     const sequence = state.nextVertexSequence
     const id = `v${sequence}`
-    const round = nextRound(state.dag)
-    const source = nextUnusedSource(state.dag, round)
+    const round = options.round ?? nextRound(state.dag)
+    const source = options.source ?? nextUnusedSource(state.dag, round)
+    if (!isNonNegativeInteger(round) || !isNonNegativeInteger(source)) {
+      return { ok: false, reason: 'invalid-value' as const }
+    }
+
+    const allowedReferenceIds = previousRoundIds(state.dag, round)
+    const referenceIds = options.referenceIds
+      ? new Set(options.referenceIds)
+      : undefined
+    if (
+      referenceIds &&
+      Array.from(referenceIds).some((referenceId) => !allowedReferenceIds.has(referenceId))
+    ) {
+      return { ok: false, reason: 'invalid-reference' as const }
+    }
+
     const vertex = createVertex(
       id,
       source,
       round,
-      position ?? defaultPosition(state.dag.vertices.size),
+      options.position ?? defaultPosition(state.dag.vertices.size),
     )
     let dag = insertVertex(state.dag, vertex)
-
-    if (!dag) return id
+    if (!dag) return { ok: false, reason: 'duplicate-slot' as const }
     if (state.layoutMode === 'round-grid') {
       dag = layoutVerticesByRounds(dag)
     }
@@ -289,6 +337,7 @@ export const useDagStore = create<DagStore>()((set, get) => ({
       dag,
       state.edges,
       state.nextEdgeSequence,
+      referenceIds,
     )
 
     set((current) => ({
@@ -299,7 +348,40 @@ export const useDagStore = create<DagStore>()((set, get) => ({
       nextVertexSequence: current.nextVertexSequence + 1,
       nextEdgeSequence: edgeResult.nextEdgeSequence,
     }))
-    return id
+    return { ok: true, id }
+  },
+
+  updateVertexReferences: (vertexId, referenceIds) => {
+    const state = get()
+    const vertex = state.dag.vertices.get(vertexId)
+    if (!vertex) return false
+    const allowedReferenceIds = previousRoundIds(state.dag, vertex.round)
+    const selectedReferenceIds = new Set(referenceIds)
+    if (
+      Array.from(selectedReferenceIds).some(
+        (referenceId) => !allowedReferenceIds.has(referenceId),
+      )
+    ) {
+      return false
+    }
+
+    const edges = new Map(state.edges)
+    for (const [edgeId, edge] of edges) {
+      if (edge.source === vertexId) edges.delete(edgeId)
+    }
+    const edgeResult = addStrongPredecessorEdges(
+      vertex,
+      state.dag,
+      edges,
+      state.nextEdgeSequence,
+      selectedReferenceIds,
+    )
+    set({
+      edges: edgeResult.edges,
+      selectedEdgeId: null,
+      nextEdgeSequence: edgeResult.nextEdgeSequence,
+    })
+    return true
   },
 
   updateVertex: (vertexId, patch) => {

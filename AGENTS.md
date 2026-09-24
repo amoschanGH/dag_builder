@@ -32,6 +32,6 @@
 
 - Tailwind v4 uses `@tailwindcss/vite`. Keep `@xyflow/react/dist/style.css` after the Tailwind import in `src/index.css` or React Flow styling can be overridden.
 - State is in memory only; refresh discards the editor/simulation. There is no real-time scheduler, persistence, partition model, or E2E harness yet.
-- The editor defaults to the round/source grid from `src/domain/dag.ts`; dragging a node switches it to `freeform`. Use **Round grid** or **Re-grid** to restore deterministic columns/rows.
+- The editor defaults to the round/source grid from `src/domain/dag.ts`; dragging a node switches it to `freeform`. Use **Round grid** or **Re-grid** to restore deterministic columns/rows. `VertexComposer` is the creation path for choosing source/round and a selected previous-round strong-reference set; `updateVertexReferences` edits that set afterward.
 - In the grid, older rounds are left and newer rounds are right; the outgoing/source handle is on the node's left and the incoming/target handle is on its right. Strong edges are generated from a new block to the previous-round blocks. Source labels are 1-based in the editor.
 - The roadmap order remains intentional: visualization, network simulation, graph analysis, then DAG-Rider layers.
