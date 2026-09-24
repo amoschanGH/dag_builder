@@ -16,7 +16,7 @@ describe('useDagStore', () => {
       source: 1,
       round: 1,
       position: { x: 100, y: 80 },
-      status: 'buffered',
+      status: 'in-dag',
     })
     expect(dag.rounds.get(1)).toEqual(new Set([vertexId]))
   })
@@ -164,6 +164,11 @@ describe('useDagStore', () => {
     )
     expect(Math.min(...rounds)).toBe(1)
     expect(Math.max(...rounds)).toBe(5)
+    expect(
+      Array.from(useDagStore.getState().dag.vertices.values()).every(
+        (vertex) => vertex.status === 'in-dag',
+      ),
+    ).toBe(true)
     expect(
       getRoundGridBounds(useDagStore.getState().dag.vertices.values()).rounds,
     ).toEqual([1, 2, 3, 4, 5, 6])

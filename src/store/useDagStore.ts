@@ -86,7 +86,7 @@ function createVertex(
   source: number,
   round: number,
   position: Point,
-  status: VertexStatus = 'buffered',
+  status: VertexStatus = 'in-dag',
 ): DagVertex {
   return {
     id,
@@ -185,12 +185,12 @@ function rebuildStrongEdges(dag: LocalDag) {
 function createExampleGraph(): GraphState {
   let dag = createLocalDag()
   const vertices = [
-    createVertex('v1', 1, 5, { x: 0, y: 0 }, 'committed'),
+    createVertex('v1', 1, 5, { x: 0, y: 0 }, 'in-dag'),
     createVertex('v2', 2, 2, { x: 0, y: 0 }, 'in-dag'),
     createVertex('v3', 3, 3, { x: 0, y: 0 }, 'in-dag'),
-    createVertex('v4', 4, 2, { x: 0, y: 0 }, 'committed'),
-    createVertex('v5', 1, 3, { x: 0, y: 0 }, 'deliverable'),
-    createVertex('v6', 3, 1, { x: 0, y: 0 }, 'committed'),
+    createVertex('v4', 4, 2, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v5', 1, 3, { x: 0, y: 0 }, 'in-dag'),
+    createVertex('v6', 3, 1, { x: 0, y: 0 }, 'in-dag'),
     createVertex('v7', 1, 4, { x: 0, y: 0 }, 'in-dag'),
     createVertex('v8', 2, 4, { x: 0, y: 0 }, 'in-dag'),
     createVertex('v9', 4, 4, { x: 0, y: 0 }, 'in-dag'),
